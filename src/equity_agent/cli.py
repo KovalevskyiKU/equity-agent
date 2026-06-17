@@ -12,6 +12,7 @@ from . import __version__
 from .config import load_config
 from .data import YFinanceProvider, ingest_daily_bars
 from .logging_setup import init_monitoring, setup_logging
+from .signals.feature_store import build_feature_store
 from .storage import init_db, session_scope
 from .storage.models import DailyBar, Instrument
 
@@ -66,6 +67,17 @@ def ingest(
     result = ingest_daily_bars(cfg.all_data_symbols, start_d, end_d, YFinanceProvider())
     total = sum(result.values())
     log.info("Done. Inserted %d new bars across %d symbols.", total, len(result))
+
+
+@app.command()
+def features() -> None:
+    """Build the per-symbol feature store (Parquet) from stored daily bars."""
+    log = setup_logging()
+    init_monitoring()
+    init_db()
+    counts = build_feature_store()
+    total = sum(counts.values())
+    log.info("Feature store built: %d rows across %d symbols", total, len(counts))
 
 
 @app.command()

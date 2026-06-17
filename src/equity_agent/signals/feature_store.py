@@ -1,0 +1,119 @@
+"""Build and read the Parquet feature store from stored daily bars.
+
+One Parquet file per symbol under ``data/features/``. Columnar reads keep the
+backtester and (later) the live decision loop fast. Market-context columns
+(benchmark return, VIX level/z) are joined here, where we have cross-symbol
+access, rather than inside the per-symbol :func:`build_features`.
+"""
+
+from __future__ import annotations
+
+import logging
+from pathlib import Path
+
+import pandas as pd
+from sqlalchemy import select
+
+from ..config import PROJECT_ROOT, load_config
+from ..storage.db import session_scope
+from ..storage.models import DailyBar
+from .features import build_features
+
+logger = logging.getLogger("equity_agent")
+
+
+def _safe_name(symbol: str) -> str:
+    return symbol.replace("^", "_")
+
+
+def _features_dir() -> Path:
+    cfg = load_config()
+    d = PROJECT_ROOT / cfg.data_dir / "features"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def load_bars(symbol: str) -> pd.DataFrame:
+    """Load all stored daily bars for a symbol, indexed by date (ascending)."""
+    with session_scope() as session:
+        rows = session.scalars(
+            select(DailyBar).where(DailyBar.symbol == symbol).order_by(DailyBar.ts)
+        ).all()
+        data = [
+            {
+                "ts": r.ts,
+                "open": r.open,
+                "high": r.high,
+                "low": r.low,
+                "close": r.close,
+                "adj_close": r.adj_close,
+                "volume": r.volume,
+            }
+            for r in rows
+        ]
+    if not data:
+        return pd.DataFrame()
+    return pd.DataFrame(data).set_index("ts")
+
+
+def build_market_context() -> pd.DataFrame:
+    """Benchmark daily return + VIX level/z, indexed by date. Causal (no shift forward)."""
+    cfg = load_config()
+    ctx = pd.DataFrame()
+
+    bench = load_bars(cfg.benchmark)
+    if not bench.empty:
+        ctx = pd.DataFrame({"mkt_ret_1": bench["close"].pct_change()})
+
+    vix_sym = next((s for s in cfg.regime_symbols if "VIX" in s.upper()), None)
+    if vix_sym:
+        vix = load_bars(vix_sym)
+        if not vix.empty:
+            lvl = vix["close"]
+            vix_df = pd.DataFrame(
+                {
+                    "vix_level": lvl,
+                    "vix_z": (lvl - lvl.rolling(20).mean()) / lvl.rolling(20).std(),
+                }
+            )
+            ctx = vix_df if ctx.empty else ctx.join(vix_df, how="outer")
+
+    return ctx
+
+
+def build_symbol_features(symbol: str, context: pd.DataFrame | None = None) -> pd.DataFrame:
+    bars = load_bars(symbol)
+    if bars.empty:
+        return pd.DataFrame()
+    feats = build_features(bars)
+    if context is not None and not context.empty:
+        feats = feats.join(context, how="left")
+    return feats
+
+
+def build_feature_store(symbols: list[str] | None = None) -> dict[str, int]:
+    """Compute features for each symbol and write them to Parquet. Returns row counts."""
+    cfg = load_config()
+    syms = symbols or cfg.all_data_symbols
+    context = build_market_context()
+    out_dir = _features_dir()
+    counts: dict[str, int] = {}
+
+    for symbol in syms:
+        feats = build_symbol_features(symbol, context)
+        if feats.empty:
+            logger.warning("[%s] no bars -> no features (run `eqa ingest` first)", symbol)
+            counts[symbol] = 0
+            continue
+        path = out_dir / f"{_safe_name(symbol)}.parquet"
+        feats.to_parquet(path)
+        counts[symbol] = len(feats)
+        logger.info("[%s] %d feature rows -> %s", symbol, len(feats), path.name)
+
+    return counts
+
+
+def load_features(symbol: str) -> pd.DataFrame:
+    """Read a symbol's feature frame back from the store."""
+    path = _features_dir() / f"{_safe_name(symbol)}.parquet"
+    return pd.read_parquet(path)
