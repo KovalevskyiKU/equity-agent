@@ -73,11 +73,17 @@ def evaluate(symbols: list[str], horizon: int) -> pd.DataFrame:
         return pd.DataFrame()
 
     target = panel["fwd_ret"]
+    # Non-overlapping view: every `horizon`-th row per symbol, so forward windows
+    # don't overlap and the t-stat isn't inflated by autocorrelation.
+    noov = panel.groupby("symbol", group_keys=False).apply(lambda g: g.iloc[::horizon])
+    noov_target = noov["fwd_ret"]
+
     feature_cols = [c for c in (_NUMERIC_FEATURES + _CONTEXT_FEATURES) if c in panel.columns]
     rows: list[dict[str, float | str | int]] = []
 
     for col in feature_cols:
         r, t, n = information_coefficient(panel[col], target)
+        nr, nt, nn = information_coefficient(noov[col], noov_target)
 
         q_spread = float("nan")
         sub = panel[[col, "fwd_ret"]].dropna()
@@ -89,10 +95,20 @@ def evaluate(symbols: list[str], horizon: int) -> pd.DataFrame:
             except ValueError:
                 pass
 
-        rows.append({"feature": col, "ic": r, "t_stat": t, "q5_q1_spread": q_spread, "n": n})
+        rows.append(
+            {
+                "feature": col,
+                "ic": r,
+                "t_stat": t,
+                "noov_ic": nr,
+                "noov_t": nt,
+                "q5_q1_spread": q_spread,
+                "n": n,
+            }
+        )
 
     out = pd.DataFrame(rows)
-    return out.sort_values("ic", key=lambda s: s.abs(), ascending=False).reset_index(drop=True)
+    return out.sort_values("noov_ic", key=lambda s: s.abs(), ascending=False).reset_index(drop=True)
 
 
 def run(

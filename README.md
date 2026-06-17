@@ -64,9 +64,17 @@ secrets (API keys, `DATABASE_URL`) live in `.env` (gitignored).
 
 ## Status
 
-**Phase 0 — foundation** (current): repo, config, storage, daily-bar ingestion,
-tests, CI, monitoring hooks. Later phases are stubbed packages with documented
-interfaces. See the roadmap discussion / project memory for the full plan.
+- **Phase 0 — foundation** ✅: repo, config, storage, daily-bar ingestion, tests, CI.
+- **Phase 1 — signals** (in progress): causal feature store ✅, IC/quantile research
+  harness with non-overlapping correction ✅, Kronos probabilistic signal + eval ✅,
+  validation harness (non-overlapping IC, block stability, purged walk-forward) ✅,
+  performance metrics ✅. LLM sentiment — pending API key.
+- **Phases 2–4** (decision/risk/execution): stubbed packages with documented interfaces.
+
+Early finding (10y, AAPL/NVDA/JPM): the only technical feature with edge that
+survives the non-overlapping correction is realized volatility (`atr_14`, ~t=2.8
+at the 10-day horizon); momentum features are noise on the full sample. See the
+roadmap discussion / project memory for the full plan.
 
 ## Dev
 
