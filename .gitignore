@@ -18,6 +18,9 @@ venv/
 .mypy_cache/
 .ruff_cache/
 
+# Vendored external repos (cloned by setup step; see README)
+third_party/
+
 # Data & artifacts (kept out of git — large / machine-local)
 data/
 *.db

@@ -99,6 +99,36 @@ def research(
         typer.echo(table.to_string(index=False))
 
 
+@app.command("kronos-signal")
+def kronos_signal_cmd(
+    symbol: str = typer.Argument(..., help="ticker, e.g. AAPL"),
+    horizon: int = typer.Option(10, help="forecast horizon in trading days"),
+    samples: int = typer.Option(20, help="number of Kronos sample paths"),
+    lookback: int = typer.Option(256, help="history bars fed to the model"),
+) -> None:
+    """Current Kronos probabilistic signal for a symbol (uses latest stored bars)."""
+    setup_logging()
+    init_db()
+    # Imported lazily — these pull in torch, which the rest of the CLI doesn't need.
+    from .signals.feature_store import load_bars
+    from .signals.kronos_signal import KronosForecaster
+
+    bars = load_bars(symbol)
+    if len(bars) < lookback:
+        typer.echo(f"Not enough bars for {symbol} ({len(bars)} < {lookback}). Run `eqa ingest`.")
+        raise typer.Exit(1)
+
+    window = bars.tail(lookback)
+    forecaster = KronosForecaster()
+    sig = forecaster.signal(window, horizon=horizon, sample_count=samples)
+    last_close = float(window["close"].iloc[-1])
+
+    typer.echo(f"{symbol}  last_close={last_close:.2f}  horizon={horizon}d  samples={samples}")
+    typer.echo(f"  p_up    = {sig['k_p_up']:.3f}")
+    typer.echo(f"  exp_ret = {sig['k_exp_ret'] * 100:+.2f}%")
+    typer.echo(f"  ret_std = {sig['k_ret_std'] * 100:.2f}%")
+
+
 @app.command()
 def status() -> None:
     """Show how many bars are stored per symbol."""

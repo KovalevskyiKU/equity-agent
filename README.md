@@ -42,8 +42,22 @@ copy .env.example .env        :: then fill in keys as phases need them
 ```cmd
 eqa initdb       :: create tables + register the configured universe
 eqa ingest       :: fetch & store daily bars (yfinance, no key needed)
+eqa features     :: build the causal Parquet feature store
+eqa research     :: rank features by predictive edge (IC + quantile spread)
 eqa status       :: show stored bar counts per symbol
 ```
+
+### Optional: Kronos signal
+
+The Kronos model is vendored (cloned) and pulls in `torch`. One-time setup:
+
+```cmd
+git clone https://github.com/shiyu-coder/Kronos third_party/Kronos
+pip install -e ".[kronos]"
+eqa kronos-signal AAPL --horizon 10 --samples 20
+```
+
+Weights download from HuggingFace on first run (no token needed).
 
 Universe and other non-secret params live in [`config.yaml`](config.yaml);
 secrets (API keys, `DATABASE_URL`) live in `.env` (gitignored).
