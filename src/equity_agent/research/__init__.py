@@ -8,5 +8,20 @@ they come online.
 """
 
 from .signal_eval import evaluate, forward_return, information_coefficient, run
+from .validation import (
+    PurgedWalkForwardSplit,
+    block_ic,
+    ic_stability,
+    non_overlapping_ic,
+)
 
-__all__ = ["evaluate", "forward_return", "information_coefficient", "run"]
+__all__ = [
+    "PurgedWalkForwardSplit",
+    "block_ic",
+    "evaluate",
+    "forward_return",
+    "ic_stability",
+    "information_coefficient",
+    "non_overlapping_ic",
+    "run",
+]
