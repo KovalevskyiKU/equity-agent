@@ -12,6 +12,7 @@ from . import __version__
 from .config import load_config
 from .data import YFinanceProvider, ingest_daily_bars
 from .logging_setup import init_monitoring, setup_logging
+from .research.signal_eval import run as run_signal_eval
 from .signals.feature_store import build_feature_store
 from .storage import init_db, session_scope
 from .storage.models import DailyBar, Instrument
@@ -78,6 +79,24 @@ def features() -> None:
     counts = build_feature_store()
     total = sum(counts.values())
     log.info("Feature store built: %d rows across %d symbols", total, len(counts))
+
+
+@app.command()
+def research(
+    horizon: list[int] = typer.Option(None, "--horizon", help="forward-return horizons, days"),
+) -> None:
+    """Score each feature's predictive edge (IC + quantile spread) vs forward returns."""
+    setup_logging()
+    init_monitoring()
+    init_db()
+    horizons = tuple(horizon) if horizon else (1, 5, 10)
+    results = run_signal_eval(horizons=horizons)
+    for h, table in results.items():
+        if table.empty:
+            typer.echo(f"\n[h={h}] no data — run `eqa ingest` and `eqa features` first.")
+            continue
+        typer.echo(f"\n=== forward horizon = {h} day(s) — features ranked by |IC| ===")
+        typer.echo(table.to_string(index=False))
 
 
 @app.command()
