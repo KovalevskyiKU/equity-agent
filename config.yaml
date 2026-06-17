@@ -1,0 +1,17 @@
+# Non-secret project configuration. Secrets live in .env (see .env.example).
+
+# Trading universe (Phase 1). Config-driven — never hardcode symbols in code.
+universe:
+  - AAPL
+  - NVDA
+  - JPM
+
+benchmark: SPY          # buy-and-hold benchmark; strategy must beat it risk-adjusted
+regime_symbols:         # used as market-regime features, not traded
+  - SPY
+  - "^VIX"
+
+timeframe: "1d"         # daily swing — avoids PDT rule, matches news/LLM cadence
+history_start: "2015-01-01"
+
+data_dir: data
