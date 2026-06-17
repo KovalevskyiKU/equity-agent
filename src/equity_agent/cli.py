@@ -129,6 +129,37 @@ def kronos_signal_cmd(
     typer.echo(f"  ret_std = {sig['k_ret_std'] * 100:.2f}%")
 
 
+@app.command("kronos-eval")
+def kronos_eval_cmd(
+    symbol: str = typer.Argument(..., help="ticker, e.g. AAPL"),
+    horizon: int = typer.Option(10, help="forward horizon in trading days"),
+    points: int = typer.Option(60, help="historical as-of points to evaluate"),
+    samples: int = typer.Option(12, help="Kronos sample paths per point"),
+    step: int = typer.Option(4, help="trading days between as-of points"),
+    lookback: int = typer.Option(256, help="history bars fed to the model"),
+) -> None:
+    """Indicative edge read: IC of the Kronos signal vs forward returns (compute-heavy)."""
+    log = setup_logging()
+    init_db()
+    from .config import PROJECT_ROOT, load_config
+    from .research.kronos_eval import evaluate_kronos, summarize
+
+    df = evaluate_kronos(
+        symbol, horizon=horizon, points=points, sample_count=samples, step=step, lookback=lookback
+    )
+    if df.empty:
+        typer.echo(f"No data for {symbol}. Run `eqa ingest` first.")
+        raise typer.Exit(1)
+
+    reports_dir = PROJECT_ROOT / load_config().data_dir / "reports"
+    reports_dir.mkdir(parents=True, exist_ok=True)
+    df.to_csv(reports_dir / f"kronos_eval_{symbol}_h{horizon}.csv", index=False)
+
+    log.info("Evaluated %d points for %s (horizon=%d)", len(df), symbol, horizon)
+    typer.echo(f"\n=== Kronos signal IC vs {horizon}d forward return — {symbol} ===")
+    typer.echo(summarize(df).to_string(index=False))
+
+
 @app.command()
 def status() -> None:
     """Show how many bars are stored per symbol."""
