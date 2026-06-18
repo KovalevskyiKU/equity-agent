@@ -33,6 +33,7 @@ class LLMBacktestReport:
     basket: dict[str, float]
     benchmark: dict[str, float]
     n_calls: int
+    n_failed: int
     n_decision_dates: int
     strategy_equity: pd.Series
     benchmark_equity: pd.Series
@@ -48,10 +49,11 @@ def build_llm_weights(
     with_kronos: bool,
     with_sentiment: bool,
     delay: float,
-) -> tuple[pd.DataFrame, int]:
+) -> tuple[pd.DataFrame, int, int]:
     decision_dates = list(calendar[::rebalance_days])
     weights = pd.DataFrame(index=calendar, columns=symbols, dtype=float)
     calls = 0
+    failed = 0
     for i, dt in enumerate(decision_dates, start=1):
         asof = dt.date() if isinstance(dt, pd.Timestamp) else dt
         bundles: dict[str, dict[str, object]] = {}
@@ -71,11 +73,12 @@ def build_llm_weights(
                     weights.loc[dt, sym] = out.target_weight
         except Exception as e:  # noqa: BLE001 - a failed date is forward-filled, not fatal
             logger.warning("portfolio decide failed @ %s: %s", asof, e)
+            failed += 1
         calls += 1
         if delay:
             time.sleep(delay)
         logger.info("  decided %s (%d/%d dates)", asof, i, len(decision_dates))
-    return weights.ffill().fillna(0.0), calls
+    return weights.ffill().fillna(0.0), calls, failed
 
 
 def run_llm_backtest(
@@ -106,7 +109,7 @@ def run_llm_backtest(
         len(symbols), len(cal), rebalance_days,
     )
 
-    weights, calls = build_llm_weights(
+    weights, calls, failed = build_llm_weights(
         symbols, cal, rebalance_days=rebalance_days, max_weight=max_weight,
         model=model, with_kronos=with_kronos, with_sentiment=with_sentiment, delay=delay,
     )
@@ -132,6 +135,7 @@ def run_llm_backtest(
         basket=return_summary(basket_res.returns),
         benchmark=return_summary(bench_res.returns),
         n_calls=calls,
+        n_failed=failed,
         n_decision_dates=len(list(cal[::rebalance_days])),
         strategy_equity=strat_res.equity,
         benchmark_equity=bench_res.equity,

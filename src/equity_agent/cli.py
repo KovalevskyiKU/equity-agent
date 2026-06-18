@@ -286,7 +286,15 @@ def backtest_llm_cmd(
         with_sentiment=sentiment,
         delay=delay,
     )
-    log.info("LLM decisions: %d calls over %d dates", rep.n_calls, rep.n_decision_dates)
+    log.info(
+        "LLM decisions: %d calls, %d failed, over %d dates",
+        rep.n_calls, rep.n_failed, rep.n_decision_dates,
+    )
+    if rep.n_failed:
+        typer.echo(
+            f"WARNING: {rep.n_failed}/{rep.n_decision_dates} decision dates FAILED "
+            "— the LLM column is unreliable for this run."
+        )
     window = f"{months}mo ending {end}" if end else f"last {months}mo"
     typer.echo(f"\n=== LLM vs equal-weight basket vs {cfg.benchmark} — {window} ===")
     typer.echo(f"{'metric':<14}{'LLM':>12}{'voltgt':>12}{'basket':>12}{cfg.benchmark:>12}")

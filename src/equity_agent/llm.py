@@ -1,14 +1,16 @@
 """Single entry point for LLM calls — Groq today, swappable.
 
 Every LLM call goes through this function, so switching provider touches this
-file only. Groq's free tier (llama-3.3-70b ~1000 req/day, llama-3.1-8b ~14.4k)
-handles our backtest and live volume — unlike Gemini free (~20/day on our
-project). Structured output is enforced via JSON mode + pydantic validation.
+file only. Groq's free tier (llama-3.3-70b ~1000 req/day) handles our backtest
+and live volume. Structured output is enforced via JSON mode + pydantic
+validation, with retry/backoff on transient 429/503 (Groq is occasionally
+"high demand") so a backtest doesn't silently lose decisions.
 """
 
 from __future__ import annotations
 
 import json
+import time
 
 from pydantic import BaseModel
 
@@ -23,23 +25,34 @@ def generate_structured[T: BaseModel](
     *,
     model: str = DEFAULT_MODEL,
     temperature: float = 0.0,
+    max_attempts: int = 4,
 ) -> T:
     """Call the LLM and return a validated instance of ``schema`` (a pydantic model)."""
     from groq import Groq
 
-    client = Groq(api_key=get_settings().groq_api_key)
+    client = Groq(api_key=get_settings().groq_api_key, max_retries=2)
     schema_hint = json.dumps(schema.model_json_schema())
     full_prompt = (
         f"{prompt}\n\nReturn ONLY a JSON object conforming to this JSON Schema "
         f"(no markdown, no commentary):\n{schema_hint}"
     )
-    resp = client.chat.completions.create(
-        model=model,
-        messages=[{"role": "user", "content": full_prompt}],
-        response_format={"type": "json_object"},
-        temperature=temperature,
-    )
-    content = resp.choices[0].message.content
-    if content is None:
-        raise RuntimeError("LLM returned empty content")
-    return schema.model_validate_json(content)
+
+    last_err: Exception | None = None
+    for attempt in range(max_attempts):
+        try:
+            resp = client.chat.completions.create(
+                model=model,
+                messages=[{"role": "user", "content": full_prompt}],
+                response_format={"type": "json_object"},
+                temperature=temperature,
+            )
+            content = resp.choices[0].message.content
+            if content is None:
+                raise RuntimeError("LLM returned empty content")
+            return schema.model_validate_json(content)
+        except Exception as e:  # noqa: BLE001 - retry transient errors (429/503/parse)
+            last_err = e
+            time.sleep(min(2**attempt, 12))
+
+    assert last_err is not None
+    raise last_err
