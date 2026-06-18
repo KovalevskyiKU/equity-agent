@@ -15,7 +15,10 @@ from pydantic import BaseModel
 
 from .config import get_settings
 
-DEFAULT_MODEL = "llama-3.3-70b-versatile"
+# 8b-instant has a much larger free-tier daily token budget than 70b-versatile
+# (which is only 100k tokens/day) — needed for backtest volume. 70b is better
+# quality for occasional live decisions.
+DEFAULT_MODEL = "llama-3.1-8b-instant"
 
 
 def generate_structured[T: BaseModel](

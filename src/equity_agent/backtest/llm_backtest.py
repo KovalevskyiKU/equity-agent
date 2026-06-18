@@ -89,7 +89,7 @@ def run_llm_backtest(
     end: str | None = None,
     rebalance_days: int = 5,
     max_weight: float = 0.34,
-    model: str = "llama-3.3-70b-versatile",
+    model: str = "llama-3.1-8b-instant",
     fee_bps: float = 1.0,
     slippage_bps: float = 5.0,
     with_kronos: bool = False,
