@@ -166,6 +166,7 @@ def backtest(
     lookback: int = typer.Option(20, help="lookback for the momentum demo"),
     fee_bps: float = typer.Option(1.0, help="per-side commission, bps"),
     slippage_bps: float = typer.Option(5.0, help="slippage vs open, bps"),
+    max_dd_stop: float = typer.Option(0.0, help="drawdown circuit breaker, e.g. 0.15 (0 = off)"),
 ) -> None:
     """Backtest a baseline strategy on the universe vs SPY buy-and-hold."""
     setup_logging()
@@ -176,7 +177,9 @@ def backtest(
     from .backtest.panels import load_price_panels
 
     cfg = load_config()
-    config = BacktestConfig(fee_bps=fee_bps, slippage_bps=slippage_bps)
+    config = BacktestConfig(
+        fee_bps=fee_bps, slippage_bps=slippage_bps, max_drawdown_stop=max_dd_stop or None
+    )
 
     open_u, close_u = load_price_panels(cfg.universe)
     if open_u.empty:

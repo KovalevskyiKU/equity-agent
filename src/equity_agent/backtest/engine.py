@@ -22,6 +22,11 @@ class BacktestConfig:
     initial_cash: float = 100_000.0
     fee_bps: float = 1.0  # per-side commission, bps of traded notional
     slippage_bps: float = 5.0  # adverse fill vs the open price, bps
+    # Drawdown circuit breaker (kill switch): liquidate to cash when drawdown from
+    # the equity peak exceeds max_drawdown_stop; re-enter when it recovers above
+    # dd_resume (hysteresis; defaults to half the stop). None = disabled.
+    max_drawdown_stop: float | None = None
+    dd_resume: float | None = None
 
 
 @dataclass
@@ -50,23 +55,44 @@ def run_backtest(
     shares = pd.Series(0.0, index=symbols)
     fee_rate = config.fee_bps / 1e4
     slip = config.slippage_bps / 1e4
+    dd_stop = config.max_drawdown_stop
+    dd_resume = config.dd_resume if config.dd_resume is not None else (dd_stop or 0.0) / 2.0
 
     equity_curve: list[float] = []
     n_trades = 0
     traded_notional = 0.0
+    peak = config.initial_cash
+    halted = False
 
     for d in dates:
         o = open_px.loc[d]
         c = close_px.loc[d]
         w = exec_weights.loc[d]
 
-        if w.notna().any():
+        # Circuit breaker uses drawdown through the previous close (causal).
+        if dd_stop is not None:
+            cur_eq = equity_curve[-1] if equity_curve else config.initial_cash
+            drawdown = cur_eq / peak - 1.0 if peak > 0 else 0.0
+            if not halted and drawdown <= -dd_stop:
+                halted = True
+            elif halted and drawdown >= -dd_resume:
+                halted = False
+
+        target: pd.Series | None
+        if halted:
+            target = pd.Series(0.0, index=symbols)  # liquidate / stay flat
+        elif w.notna().any():
+            target = w
+        else:
+            target = None
+
+        if target is not None:
             equity_open = cash + float((shares * o.fillna(0.0)).sum())
             for s in symbols:
-                ws, os_ = w[s], o[s]
-                if pd.isna(ws) or pd.isna(os_) or os_ <= 0:
+                ts, os_ = target[s], o[s]
+                if pd.isna(ts) or pd.isna(os_) or os_ <= 0:
                     continue
-                desired = equity_open * float(ws) / float(os_)
+                desired = equity_open * float(ts) / float(os_)
                 delta = desired - shares[s]
                 if abs(delta) < 1e-9:
                     continue
@@ -77,7 +103,9 @@ def run_backtest(
                 n_trades += 1
                 traded_notional += abs(notional)
 
-        equity_curve.append(cash + float((shares * c.fillna(0.0)).sum()))
+        equity_close = cash + float((shares * c.fillna(0.0)).sum())
+        equity_curve.append(equity_close)
+        peak = max(peak, equity_close)
 
     equity = pd.Series(equity_curve, index=dates, name="equity")
     returns = equity.pct_change().fillna(0.0)
