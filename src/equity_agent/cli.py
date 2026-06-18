@@ -256,6 +256,41 @@ def decide(
     typer.echo(f"Rationale: {out.rationale}")
 
 
+@app.command("backtest-llm")
+def backtest_llm_cmd(
+    months: int = typer.Option(6, help="recent window length"),
+    rebalance_days: int = typer.Option(5, help="trading days between decisions"),
+    max_weight: float = typer.Option(0.34, help="max weight per name"),
+    model: str = typer.Option("gemini-2.5-flash", help="Gemini model"),
+    kronos: bool = typer.Option(False, help="include Kronos in each decision (slow)"),
+    sentiment: bool = typer.Option(False, help="include sentiment (recent only)"),
+    delay: float = typer.Option(4.0, help="seconds between LLM calls (rate limit)"),
+) -> None:
+    """Backtest the LLM decision agent on a recent window vs SPY (spends Gemini quota)."""
+    log = setup_logging()
+    init_monitoring()
+    init_db()
+    from .backtest.llm_backtest import run_llm_backtest
+
+    cfg = load_config()
+    rep = run_llm_backtest(
+        cfg.universe,
+        cfg.benchmark,
+        months=months,
+        rebalance_days=rebalance_days,
+        max_weight=max_weight,
+        model=model,
+        with_kronos=kronos,
+        with_sentiment=sentiment,
+        delay=delay,
+    )
+    log.info("LLM decisions: %d calls over %d dates", rep.n_calls, rep.n_decision_dates)
+    typer.echo(f"\n=== LLM agent (universe) vs {cfg.benchmark} buy-and-hold — last {months}mo ===")
+    typer.echo(f"{'metric':<14}{'LLM':>12}{cfg.benchmark:>12}")
+    for key in ("total_return", "cagr", "ann_vol", "sharpe", "sortino", "max_drawdown", "calmar"):
+        typer.echo(f"{key:<14}{rep.strategy[key]:>12.3f}{rep.benchmark[key]:>12.3f}")
+
+
 @app.command()
 def status() -> None:
     """Show how many bars are stored per symbol."""
