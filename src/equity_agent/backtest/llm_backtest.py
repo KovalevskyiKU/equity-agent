@@ -21,7 +21,7 @@ from ..signals.bundle import build_bundle
 from .engine import BacktestConfig, run_backtest
 from .metrics import return_summary
 from .panels import load_price_panels
-from .strategy import single_asset
+from .strategy import buy_and_hold_equal, single_asset
 
 logger = logging.getLogger("equity_agent")
 
@@ -29,6 +29,7 @@ logger = logging.getLogger("equity_agent")
 @dataclass
 class LLMBacktestReport:
     strategy: dict[str, float]
+    basket: dict[str, float]
     benchmark: dict[str, float]
     n_calls: int
     n_decision_dates: int
@@ -81,9 +82,10 @@ def run_llm_backtest(
     benchmark: str,
     *,
     months: int = 6,
+    end: str | None = None,
     rebalance_days: int = 5,
     max_weight: float = 0.34,
-    model: str = "gemini-2.5-flash",
+    model: str = "llama-3.3-70b-versatile",
     fee_bps: float = 1.0,
     slippage_bps: float = 5.0,
     with_kronos: bool = False,
@@ -95,8 +97,9 @@ def run_llm_backtest(
         raise RuntimeError("No price data; run `eqa ingest` first.")
 
     idx_dt = pd.to_datetime(close_px.index)
-    cutoff = idx_dt.max() - pd.Timedelta(days=int(months * 31))
-    cal = close_px.index[idx_dt >= cutoff]
+    end_ts = pd.Timestamp(end) if end else idx_dt.max()
+    start_ts = end_ts - pd.Timedelta(days=int(months * 31))
+    cal = close_px.index[(idx_dt >= start_ts) & (idx_dt <= end_ts)]
     logger.info(
         "LLM backtest: %d symbols, %d trading days, rebalance every %d",
         len(symbols), len(cal), rebalance_days,
@@ -108,6 +111,9 @@ def run_llm_backtest(
     )
     cfg = BacktestConfig(fee_bps=fee_bps, slippage_bps=slippage_bps)
     strat_res = run_backtest(open_px.loc[cal], close_px.loc[cal], weights, cfg)
+    basket_res = run_backtest(
+        open_px.loc[cal], close_px.loc[cal], buy_and_hold_equal(close_px.loc[cal]), cfg
+    )
 
     ob, cb = load_price_panels([benchmark])
     bcal = cal[cal.isin(cb.index)]
@@ -115,6 +121,7 @@ def run_llm_backtest(
 
     return LLMBacktestReport(
         strategy=return_summary(strat_res.returns),
+        basket=return_summary(basket_res.returns),
         benchmark=return_summary(bench_res.returns),
         n_calls=calls,
         n_decision_dates=len(list(cal[::rebalance_days])),

@@ -258,7 +258,8 @@ def decide(
 
 @app.command("backtest-llm")
 def backtest_llm_cmd(
-    months: int = typer.Option(6, help="recent window length"),
+    months: int = typer.Option(6, help="window length in months"),
+    end: str = typer.Option(None, help="window end date (ISO); default = latest"),
     rebalance_days: int = typer.Option(5, help="trading days between decisions"),
     max_weight: float = typer.Option(0.34, help="max weight per name"),
     model: str = typer.Option("llama-3.3-70b-versatile", help="LLM model"),
@@ -277,6 +278,7 @@ def backtest_llm_cmd(
         cfg.universe,
         cfg.benchmark,
         months=months,
+        end=end,
         rebalance_days=rebalance_days,
         max_weight=max_weight,
         model=model,
@@ -285,10 +287,13 @@ def backtest_llm_cmd(
         delay=delay,
     )
     log.info("LLM decisions: %d calls over %d dates", rep.n_calls, rep.n_decision_dates)
-    typer.echo(f"\n=== LLM agent (universe) vs {cfg.benchmark} buy-and-hold — last {months}mo ===")
-    typer.echo(f"{'metric':<14}{'LLM':>12}{cfg.benchmark:>12}")
+    window = f"{months}mo ending {end}" if end else f"last {months}mo"
+    typer.echo(f"\n=== LLM vs equal-weight basket vs {cfg.benchmark} — {window} ===")
+    typer.echo(f"{'metric':<14}{'LLM':>12}{'basket':>12}{cfg.benchmark:>12}")
     for key in ("total_return", "cagr", "ann_vol", "sharpe", "sortino", "max_drawdown", "calmar"):
-        typer.echo(f"{key:<14}{rep.strategy[key]:>12.3f}{rep.benchmark[key]:>12.3f}")
+        typer.echo(
+            f"{key:<14}{rep.strategy[key]:>12.3f}{rep.basket[key]:>12.3f}{rep.benchmark[key]:>12.3f}"
+        )
 
 
 @app.command()

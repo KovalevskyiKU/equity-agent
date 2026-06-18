@@ -18,18 +18,21 @@ from ..llm import DEFAULT_MODEL, generate_structured
 
 _VALID_ACTIONS = {"BUY", "HOLD", "SELL"}
 
+_PRIORS = (
+    "US large-caps drift upward over time, so the sensible default is to be INVESTED; "
+    "use the signals to size the position and to trim or exit only when they are clearly "
+    "adverse. Research priors: realised volatility (atr_14, vol_20, vix_level) has a small "
+    "positive edge (higher vol has preceded higher forward returns); momentum/MACD/RSI are "
+    "weak; Kronos k_p_up is weak; sentiment is short-lived. Set target_weight in "
+    "[0, {max_weight}]: lean toward {max_weight} when signals are neutral-to-favorable, "
+    "reduce toward 0 only on clearly negative signals; don't sit in cash without a reason."
+)
+
 _PROMPT = (
-    "You are a disciplined LONG-ONLY daily-swing trader deciding a ~10-trading-day "
-    "position in {symbol}. Use ONLY the signals provided (they are point-in-time, no "
-    "future data).\n"
-    "Research priors: realised-volatility signals (atr_14, vol_20, vix_level) carry a "
-    "small but real edge (higher vol has preceded higher forward returns); "
-    "momentum/MACD/RSI were noise on the full sample; the Kronos directional "
-    "probability (k_p_up) is weak; news sentiment is short-lived. Individual signals "
-    "are weak — be conservative and size modestly.\n"
-    "Return: action (BUY = open/hold long, HOLD = keep, SELL = go flat), target_weight "
-    "in [0, {max_weight}], confidence in [0, 1], and a one-sentence rationale.\n\n"
-    "SIGNALS (JSON):\n{signals}"
+    "You are a LONG-ONLY daily-swing portfolio manager deciding a ~10-trading-day position "
+    "in {symbol} from the signals below (point-in-time, no future data).\n" + _PRIORS + "\n"
+    "Return action (BUY/HOLD/SELL), target_weight, confidence in [0,1], and a one-sentence "
+    "rationale.\n\nSIGNALS (JSON):\n{signals}"
 )
 
 
@@ -78,13 +81,10 @@ class _PortfolioOut(BaseModel):
 
 
 _PORTFOLIO_PROMPT = (
-    "You are a disciplined LONG-ONLY daily-swing trader. For EACH symbol below decide a "
-    "~10-trading-day position using ONLY that symbol's signals (point-in-time).\n"
-    "Research priors: realised volatility (atr_14, vol_20, vix_level) carries a small but "
-    "real edge; momentum/MACD/RSI were noise; Kronos k_p_up is weak; sentiment is "
-    "short-lived. Signals are weak — be conservative and size modestly. Per name "
-    "target_weight in [0, {max_weight}] (BUY=long, HOLD=keep, SELL=flat).\n\n"
-    "SYMBOLS (JSON list of signal bundles):\n{bundles}"
+    "You are a LONG-ONLY daily-swing portfolio manager. For EACH symbol below decide a "
+    "~10-trading-day position using ONLY that symbol's signals (point-in-time).\n" + _PRIORS
+    + "\nReturn one entry per symbol (action BUY/HOLD/SELL, target_weight, confidence, "
+    "rationale).\n\nSYMBOLS (JSON list of signal bundles):\n{bundles}"
 )
 
 
