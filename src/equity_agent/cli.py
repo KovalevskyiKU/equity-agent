@@ -161,6 +161,48 @@ def kronos_eval_cmd(
 
 
 @app.command()
+def backtest(
+    strategy: str = typer.Option("buy-hold", help="buy-hold | momentum (demo)"),
+    lookback: int = typer.Option(20, help="lookback for the momentum demo"),
+    fee_bps: float = typer.Option(1.0, help="per-side commission, bps"),
+    slippage_bps: float = typer.Option(5.0, help="slippage vs open, bps"),
+) -> None:
+    """Backtest a baseline strategy on the universe vs SPY buy-and-hold."""
+    setup_logging()
+    init_db()
+    from .backtest import strategy as strat
+    from .backtest.engine import BacktestConfig, run_backtest
+    from .backtest.metrics import return_summary
+    from .backtest.panels import load_price_panels
+
+    cfg = load_config()
+    config = BacktestConfig(fee_bps=fee_bps, slippage_bps=slippage_bps)
+
+    open_u, close_u = load_price_panels(cfg.universe)
+    if open_u.empty:
+        typer.echo("No price data. Run `eqa ingest` first.")
+        raise typer.Exit(1)
+    weights = (
+        strat.momentum_long_flat(close_u, lookback=lookback)
+        if strategy == "momentum"
+        else strat.buy_and_hold_equal(close_u)
+    )
+    res = run_backtest(open_u, close_u, weights, config)
+
+    open_b, close_b = load_price_panels([cfg.benchmark])
+    bench = run_backtest(open_b, close_b, strat.single_asset(close_b, cfg.benchmark), config)
+
+    strat_m = return_summary(res.returns)
+    bench_m = return_summary(bench.returns)
+    typer.echo(f"\n=== {strategy} (universe) vs {cfg.benchmark} buy-and-hold ===")
+    typer.echo(f"{'metric':<14}{strategy:>14}{cfg.benchmark:>14}")
+    for key in ("total_return", "cagr", "ann_vol", "sharpe", "sortino", "max_drawdown", "calmar"):
+        typer.echo(f"{key:<14}{strat_m[key]:>14.3f}{bench_m[key]:>14.3f}")
+    typer.echo(f"{'n_trades':<14}{res.n_trades:>14}{bench.n_trades:>14}")
+    typer.echo(f"{'turnover':<14}{res.turnover:>14.2f}{bench.turnover:>14.2f}")
+
+
+@app.command()
 def status() -> None:
     """Show how many bars are stored per symbol."""
     init_db()

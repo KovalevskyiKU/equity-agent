@@ -10,3 +10,7 @@ Two complementary engines:
 Validation: walk-forward OOS, metrics vs SPY buy-and-hold, and edge-vs-luck
 tests (Monte-Carlo permutation, deflated Sharpe).
 """
+
+from .engine import BacktestConfig, BacktestResult, run_backtest
+
+__all__ = ["BacktestConfig", "BacktestResult", "run_backtest"]
