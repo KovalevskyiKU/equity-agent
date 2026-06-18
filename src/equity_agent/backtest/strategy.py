@@ -41,8 +41,13 @@ def vol_target_weights(
     """
     rets = close_px.pct_change()
     ann_vol = rets.rolling(lookback).std() * (252.0**0.5)
-    weights = (target_vol / ann_vol).clip(upper=max_weight)
-    return weights.fillna(0.0)
+    weights = (target_vol / ann_vol).clip(upper=max_weight).fillna(0.0)
+    # Cap total gross exposure at 100% (long-only, no leverage): scale a row down
+    # only when its weights sum above 1. Without this, sizing each of N names
+    # independently can sum to N*max_weight (e.g. 8*0.34 = 2.7x leverage).
+    gross = weights.sum(axis=1)
+    scale = (1.0 / gross.replace(0.0, 1.0)).clip(upper=1.0)
+    return weights.mul(scale, axis=0)
 
 
 def momentum_long_flat(close_px: pd.DataFrame, lookback: int = 20) -> pd.DataFrame:

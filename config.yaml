@@ -1,10 +1,15 @@
 # Non-secret project configuration. Secrets live in .env (see .env.example).
 
 # Trading universe (Phase 1). Config-driven — never hardcode symbols in code.
-universe:
+universe:        # diversified across sectors (tech, financials, health, energy, staples, discretionary)
   - AAPL
+  - MSFT
   - NVDA
   - JPM
+  - UNH
+  - XOM
+  - PG
+  - HD
 
 benchmark: SPY          # buy-and-hold benchmark; strategy must beat it risk-adjusted
 regime_symbols:         # used as market-regime features, not traded

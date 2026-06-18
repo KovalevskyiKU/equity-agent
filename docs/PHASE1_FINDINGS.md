@@ -93,3 +93,20 @@ gave up return for little average risk benefit — it helps only in the minority
 of crash windows (COVID/2022). Implications: the bar for the LLM agent is high
 (beat basket Sharpe ~1.66), and diversifying the universe likely matters more
 than the allocator on 3 correlated names. Objective chosen: risk-adjusted.
+
+### Diversified universe — 8 names across sectors (same 66-window sweep)
+
+Universe expanded to AAPL/MSFT/NVDA/JPM/UNH/XOM/PG/HD. (Also fixed a leverage bug:
+vol_target_weights sized each name to max_weight independently, ~2.7x gross on 8
+names; now capped at 100% gross.)
+
+| strategy   | median Sharpe | median maxDD | median return |
+|------------|---------------|--------------|---------------|
+| basket     | 1.56          | -8.2%        | +12.4%        |
+| vol-target | 1.51          | -7.5%        | +10.7%        |
+| SPY        | 1.07          | -9.0%        | +6.5%         |
+
+Diversification did the heavy lifting: the basket's median drawdown fell from
+-13.4% (3 tech names) to -8.2%. vol-target now genuinely protects — shallower
+drawdown than the basket in 67% of windows (vs 41% on 3 names) — at a small return
+cost and ~neutral Sharpe. Cleaner, more realistic baseline; LLM bar ~Sharpe 1.56.
