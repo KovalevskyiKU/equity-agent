@@ -1,16 +1,15 @@
 """Single entry point for LLM calls — Groq today, swappable.
 
 Every LLM call goes through this function, so switching provider touches this
-file only. Groq's free tier (llama-3.3-70b ~1000 req/day) handles our backtest
-and live volume. Structured output is enforced via JSON mode + pydantic
-validation, with retry/backoff on transient 429/503 (Groq is occasionally
-"high demand") so a backtest doesn't silently lose decisions.
+file only. Groq free tier is rate-limited (~30 req/min, ~6k tokens/min, ~1k/day);
+we let the SDK honour Retry-After via max_retries so transient 429/503 pace
+themselves instead of failing. Structured output = JSON mode + pydantic
+validation.
 """
 
 from __future__ import annotations
 
 import json
-import time
 
 from pydantic import BaseModel
 
@@ -25,34 +24,22 @@ def generate_structured[T: BaseModel](
     *,
     model: str = DEFAULT_MODEL,
     temperature: float = 0.0,
-    max_attempts: int = 4,
 ) -> T:
     """Call the LLM and return a validated instance of ``schema`` (a pydantic model)."""
     from groq import Groq
 
-    client = Groq(api_key=get_settings().groq_api_key, max_retries=2)
-    schema_hint = json.dumps(schema.model_json_schema())
-    full_prompt = (
-        f"{prompt}\n\nReturn ONLY a JSON object conforming to this JSON Schema "
-        f"(no markdown, no commentary):\n{schema_hint}"
+    # max_retries lets the SDK wait out 429/503 (honouring Retry-After) — do NOT add a
+    # manual retry loop on top, it just multiplies requests and burns the daily quota.
+    client = Groq(api_key=get_settings().groq_api_key, max_retries=8)
+    hint = json.dumps(schema.model_json_schema())
+    full_prompt = f"{prompt}\n\nReturn ONLY a JSON object matching this schema:\n{hint}"
+    resp = client.chat.completions.create(
+        model=model,
+        messages=[{"role": "user", "content": full_prompt}],
+        response_format={"type": "json_object"},
+        temperature=temperature,
     )
-
-    last_err: Exception | None = None
-    for attempt in range(max_attempts):
-        try:
-            resp = client.chat.completions.create(
-                model=model,
-                messages=[{"role": "user", "content": full_prompt}],
-                response_format={"type": "json_object"},
-                temperature=temperature,
-            )
-            content = resp.choices[0].message.content
-            if content is None:
-                raise RuntimeError("LLM returned empty content")
-            return schema.model_validate_json(content)
-        except Exception as e:  # noqa: BLE001 - retry transient errors (429/503/parse)
-            last_err = e
-            time.sleep(min(2**attempt, 12))
-
-    assert last_err is not None
-    raise last_err
+    content = resp.choices[0].message.content
+    if content is None:
+        raise RuntimeError("LLM returned empty content")
+    return schema.model_validate_json(content)

@@ -265,7 +265,7 @@ def backtest_llm_cmd(
     model: str = typer.Option("llama-3.3-70b-versatile", help="LLM model"),
     kronos: bool = typer.Option(False, help="include Kronos in each decision (slow)"),
     sentiment: bool = typer.Option(False, help="include sentiment (recent only)"),
-    delay: float = typer.Option(4.0, help="seconds between LLM calls (rate limit)"),
+    delay: float = typer.Option(8.0, help="seconds between LLM calls (free-tier TPM)"),
 ) -> None:
     """Backtest the LLM decision agent on a recent window vs SPY (spends Gemini quota)."""
     log = setup_logging()

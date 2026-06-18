@@ -94,7 +94,7 @@ def run_llm_backtest(
     slippage_bps: float = 5.0,
     with_kronos: bool = False,
     with_sentiment: bool = False,
-    delay: float = 4.0,
+    delay: float = 8.0,
 ) -> LLMBacktestReport:
     open_px, close_px = load_price_panels(symbols)
     if close_px.empty:
