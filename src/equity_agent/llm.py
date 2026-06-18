@@ -10,10 +10,32 @@ validation.
 from __future__ import annotations
 
 import json
+import typing
 
 from pydantic import BaseModel
 
 from .config import get_settings
+
+
+def _annotation_shape(ann: object) -> object:
+    if isinstance(ann, type) and issubclass(ann, BaseModel):
+        return _compact_shape(ann)
+    origin = typing.get_origin(ann)
+    if origin in (list, tuple):
+        args = typing.get_args(ann)
+        return [_annotation_shape(args[0] if args else str)]
+    if ann in (int, float):
+        return "number"
+    if ann is bool:
+        return "boolean"
+    return "string"
+
+
+def _compact_shape(model: type[BaseModel]) -> dict[str, object]:
+    """A tiny JSON shape (field -> type) — far cheaper in tokens than the full
+    JSON Schema, which matters under Groq's ~100k tokens/day free limit."""
+    return {name: _annotation_shape(f.annotation) for name, f in model.model_fields.items()}
+
 
 # 70b-versatile: best free-tier quality. Free TPD is ~100k tokens/day (≈3 backtest
 # windows/day), so spend it deliberately — the retry fix above prevents the storms
@@ -35,8 +57,8 @@ def generate_structured[T: BaseModel](
     # max_retries lets the SDK wait out 429/503 (honouring Retry-After) — do NOT add a
     # manual retry loop on top, it just multiplies requests and burns the daily quota.
     client = Groq(api_key=get_settings().groq_api_key, max_retries=8)
-    hint = json.dumps(schema.model_json_schema())
-    full_prompt = f"{prompt}\n\nReturn ONLY a JSON object matching this schema:\n{hint}"
+    hint = json.dumps(_compact_shape(schema))
+    full_prompt = f"{prompt}\n\nReturn ONLY a JSON object with exactly this shape:\n{hint}"
     resp = client.chat.completions.create(
         model=model,
         messages=[{"role": "user", "content": full_prompt}],
