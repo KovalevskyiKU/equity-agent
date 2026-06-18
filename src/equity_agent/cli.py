@@ -206,7 +206,7 @@ def backtest(
 def news(
     symbol: str = typer.Argument(..., help="ticker, e.g. AAPL"),
     days: int = typer.Option(7, help="lookback days of news"),
-    model: str = typer.Option("gemini-2.5-flash", help="Gemini model"),
+    model: str = typer.Option("gemini-2.5-flash-lite", help="Gemini model"),
     limit: int = typer.Option(0, help="max new articles to score (0 = all)"),
 ) -> None:
     """Fetch recent news, score sentiment with Gemini, store, show daily sentiment."""
@@ -234,7 +234,7 @@ def news(
 @app.command()
 def decide(
     symbol: str = typer.Argument(..., help="ticker, e.g. AAPL"),
-    model: str = typer.Option("gemini-2.5-flash", help="Gemini model"),
+    model: str = typer.Option("gemini-2.5-flash-lite", help="Gemini model"),
     kronos: bool = typer.Option(True, help="include the Kronos signal (one model run)"),
     max_weight: float = typer.Option(0.34, help="max portfolio weight per name"),
 ) -> None:
@@ -261,7 +261,7 @@ def backtest_llm_cmd(
     months: int = typer.Option(6, help="recent window length"),
     rebalance_days: int = typer.Option(5, help="trading days between decisions"),
     max_weight: float = typer.Option(0.34, help="max weight per name"),
-    model: str = typer.Option("gemini-2.5-flash", help="Gemini model"),
+    model: str = typer.Option("gemini-2.5-flash-lite", help="Gemini model"),
     kronos: bool = typer.Option(False, help="include Kronos in each decision (slow)"),
     sentiment: bool = typer.Option(False, help="include sentiment (recent only)"),
     delay: float = typer.Option(4.0, help="seconds between LLM calls (rate limit)"),

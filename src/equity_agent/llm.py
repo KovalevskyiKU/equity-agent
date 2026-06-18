@@ -13,7 +13,9 @@ from pydantic import BaseModel
 
 from .config import get_settings
 
-DEFAULT_MODEL = "gemini-2.5-flash"
+# flash-lite has a much larger free-tier daily quota than 2.5-flash (which capped at
+# ~20 req/day on our project) — necessary for backtesting volume.
+DEFAULT_MODEL = "gemini-2.5-flash-lite"
 
 
 def generate_structured[T: BaseModel](

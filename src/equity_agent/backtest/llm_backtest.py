@@ -16,7 +16,7 @@ from dataclasses import dataclass
 
 import pandas as pd
 
-from ..decision.agent import decide
+from ..decision.agent import decide_portfolio
 from ..signals.bundle import build_bundle
 from .engine import BacktestConfig, run_backtest
 from .metrics import return_summary
@@ -52,18 +52,26 @@ def build_llm_weights(
     calls = 0
     for i, dt in enumerate(decision_dates, start=1):
         asof = dt.date() if isinstance(dt, pd.Timestamp) else dt
+        bundles: dict[str, dict[str, object]] = {}
         for sym in symbols:
             try:
-                bundle = build_bundle(
+                bundles[sym] = build_bundle(
                     sym, asof=asof, with_kronos=with_kronos, with_sentiment=with_sentiment
                 )
-                out = decide(bundle, model=model, max_weight=max_weight)
-                weights.loc[dt, sym] = out.target_weight
-            except Exception as e:  # noqa: BLE001 - one failed decision shouldn't stop the run
-                logger.warning("decide failed for %s @ %s: %s", sym, asof, e)
-            calls += 1
-            if delay:
-                time.sleep(delay)
+            except Exception as e:  # noqa: BLE001 - skip a symbol with no data on this date
+                logger.warning("bundle failed for %s @ %s: %s", sym, asof, e)
+        if not bundles:
+            continue
+        try:
+            # One batched LLM call for all symbols on this date (3x fewer calls).
+            for sym, out in decide_portfolio(bundles, model=model, max_weight=max_weight).items():
+                if sym in weights.columns:
+                    weights.loc[dt, sym] = out.target_weight
+        except Exception as e:  # noqa: BLE001 - a failed date is forward-filled, not fatal
+            logger.warning("portfolio decide failed @ %s: %s", asof, e)
+        calls += 1
+        if delay:
+            time.sleep(delay)
         logger.info("  decided %s (%d/%d dates)", asof, i, len(decision_dates))
     return weights.ffill().fillna(0.0), calls
 
