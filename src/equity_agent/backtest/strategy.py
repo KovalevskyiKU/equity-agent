@@ -26,6 +26,25 @@ def buy_and_hold_equal(close_px: pd.DataFrame) -> pd.DataFrame:
     return valid.astype(float) / n
 
 
+def vol_target_weights(
+    close_px: pd.DataFrame,
+    *,
+    lookback: int = 20,
+    target_vol: float = 0.20,
+    max_weight: float = 0.34,
+) -> pd.DataFrame:
+    """Per-name volatility targeting (mechanical risk management baseline).
+
+    weight = target_vol / trailing annualised vol, capped at max_weight. Higher
+    recent volatility -> lower weight. Causal. This is the no-LLM yardstick the
+    LLM agent must beat to justify itself, given the agent's defensive profile.
+    """
+    rets = close_px.pct_change()
+    ann_vol = rets.rolling(lookback).std() * (252.0**0.5)
+    weights = (target_vol / ann_vol).clip(upper=max_weight)
+    return weights.fillna(0.0)
+
+
 def momentum_long_flat(close_px: pd.DataFrame, lookback: int = 20) -> pd.DataFrame:
     """DEMO ONLY: equal weight among symbols whose `lookback`-day return is positive.
 

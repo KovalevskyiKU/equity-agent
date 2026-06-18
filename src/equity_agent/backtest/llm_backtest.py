@@ -21,7 +21,7 @@ from ..signals.bundle import build_bundle
 from .engine import BacktestConfig, run_backtest
 from .metrics import return_summary
 from .panels import load_price_panels
-from .strategy import buy_and_hold_equal, single_asset
+from .strategy import buy_and_hold_equal, single_asset, vol_target_weights
 
 logger = logging.getLogger("equity_agent")
 
@@ -29,6 +29,7 @@ logger = logging.getLogger("equity_agent")
 @dataclass
 class LLMBacktestReport:
     strategy: dict[str, float]
+    voltarget: dict[str, float]
     basket: dict[str, float]
     benchmark: dict[str, float]
     n_calls: int
@@ -114,6 +115,12 @@ def run_llm_backtest(
     basket_res = run_backtest(
         open_px.loc[cal], close_px.loc[cal], buy_and_hold_equal(close_px.loc[cal]), cfg
     )
+    voltarget_res = run_backtest(
+        open_px.loc[cal],
+        close_px.loc[cal],
+        vol_target_weights(close_px.loc[cal], max_weight=max_weight),
+        cfg,
+    )
 
     ob, cb = load_price_panels([benchmark])
     bcal = cal[cal.isin(cb.index)]
@@ -121,6 +128,7 @@ def run_llm_backtest(
 
     return LLMBacktestReport(
         strategy=return_summary(strat_res.returns),
+        voltarget=return_summary(voltarget_res.returns),
         basket=return_summary(basket_res.returns),
         benchmark=return_summary(bench_res.returns),
         n_calls=calls,

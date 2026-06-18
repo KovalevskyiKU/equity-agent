@@ -289,10 +289,11 @@ def backtest_llm_cmd(
     log.info("LLM decisions: %d calls over %d dates", rep.n_calls, rep.n_decision_dates)
     window = f"{months}mo ending {end}" if end else f"last {months}mo"
     typer.echo(f"\n=== LLM vs equal-weight basket vs {cfg.benchmark} — {window} ===")
-    typer.echo(f"{'metric':<14}{'LLM':>12}{'basket':>12}{cfg.benchmark:>12}")
+    typer.echo(f"{'metric':<14}{'LLM':>12}{'voltgt':>12}{'basket':>12}{cfg.benchmark:>12}")
     for key in ("total_return", "cagr", "ann_vol", "sharpe", "sortino", "max_drawdown", "calmar"):
         typer.echo(
-            f"{key:<14}{rep.strategy[key]:>12.3f}{rep.basket[key]:>12.3f}{rep.benchmark[key]:>12.3f}"
+            f"{key:<14}{rep.strategy[key]:>12.3f}{rep.voltarget[key]:>12.3f}"
+            f"{rep.basket[key]:>12.3f}{rep.benchmark[key]:>12.3f}"
         )
 
 
