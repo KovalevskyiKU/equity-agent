@@ -343,6 +343,37 @@ def backtest_sweep_cmd(
     typer.echo(f"vol-target shallower drawdown than basket in {shallower:.0f}% of windows")
 
 
+@app.command("backtest-kronos")
+def backtest_kronos_cmd(
+    months: int = typer.Option(12, help="recent window length in months"),
+    rebalance_days: int = typer.Option(21, help="trading days between decisions"),
+    samples: int = typer.Option(10, help="Kronos sample paths per decision"),
+    horizon: int = typer.Option(10, help="forecast horizon in trading days"),
+    max_weight: float = typer.Option(0.20, help="max weight per name"),
+) -> None:
+    """Backtest a mechanical Kronos P(up) rule vs vol-target / basket / SPY (no LLM, slow)."""
+    log = setup_logging()
+    init_db()
+    from .backtest.kronos_rule import run_kronos_backtest
+
+    cfg = load_config()
+    res = run_kronos_backtest(
+        cfg.universe,
+        cfg.benchmark,
+        months=months,
+        rebalance_days=rebalance_days,
+        samples=samples,
+        horizon=horizon,
+        max_weight=max_weight,
+    )
+    log.info("Kronos-rule backtest done (window %dmo)", months)
+    cols = ["kronos", "voltgt", "basket", "spy"]
+    typer.echo(f"\n=== Kronos rule vs vol-target / basket / {cfg.benchmark} — last {months}mo ===")
+    typer.echo(f"{'metric':<14}" + "".join(f"{c:>12}" for c in cols))
+    for key in ("total_return", "cagr", "ann_vol", "sharpe", "sortino", "max_drawdown", "calmar"):
+        typer.echo(f"{key:<14}" + "".join(f"{res[c][key]:>12.3f}" for c in cols))
+
+
 @app.command()
 def status() -> None:
     """Show how many bars are stored per symbol."""
