@@ -25,7 +25,7 @@ data ─▶ signals ─▶ decision ─▶ risk ─▶ execution
 | Decision (TradingAgents) | `equity_agent.decision` | 2 |
 | Backtest & evaluation | `equity_agent.backtest` | 3 |
 | Risk | `equity_agent.risk` | 4 |
-| Execution (Alpaca) | `equity_agent.execution` | 4 |
+| Execution (IBKR) | `equity_agent.execution` | 4 |
 | Storage (SQLAlchemy: SQLite→Postgres) | `equity_agent.storage` | 0 |
 
 ## Setup

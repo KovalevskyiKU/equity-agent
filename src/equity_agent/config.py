@@ -36,13 +36,14 @@ class Settings(BaseSettings):
 
     database_url: str = "sqlite:///data/equity_agent.db"
 
-    # Broker / execution (Phase 4)
-    alpaca_api_key: str | None = None
-    alpaca_secret_key: str | None = None
-    alpaca_base_url: str = "https://paper-api.alpaca.markets"
-
-    # LLM (Phase 2)
+    # LLM (Phase 2) — Gemini is the active provider (free tier); Claude optional later.
+    google_api_key: str | None = None
     anthropic_api_key: str | None = None
+
+    # Execution broker (Phase 4) — IBKR (TWS/Gateway). Alpaca dropped (not in Ukraine).
+    ibkr_host: str = "127.0.0.1"
+    ibkr_port: int = 7497  # 7497 = TWS paper, 4002 = Gateway paper
+    ibkr_client_id: int = 1
 
     # Fundamentals & news (Phase 1)
     finnhub_api_key: str | None = None
