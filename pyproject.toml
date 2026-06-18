@@ -22,6 +22,7 @@ dependencies = [
 
 [project.optional-dependencies]
 llm = [
+    "groq>=0.11",
     "google-genai>=0.3",
 ]
 kronos = [

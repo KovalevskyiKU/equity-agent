@@ -1,8 +1,9 @@
-"""Single entry point for LLM calls — Gemini today, swappable later.
+"""Single entry point for LLM calls — Groq today, swappable.
 
-Keeping every LLM call behind one function means switching provider (e.g. to
-Claude when we buy the API) touches this file only, not the sentiment scorer or
-the decision agent.
+Every LLM call goes through this function, so switching provider touches this
+file only. Groq's free tier (llama-3.3-70b ~1000 req/day, llama-3.1-8b ~14.4k)
+handles our backtest and live volume — unlike Gemini free (~20/day on our
+project). Structured output is enforced via JSON mode + pydantic validation.
 """
 
 from __future__ import annotations
@@ -13,9 +14,7 @@ from pydantic import BaseModel
 
 from .config import get_settings
 
-# flash-lite has a much larger free-tier daily quota than 2.5-flash (which capped at
-# ~20 req/day on our project) — necessary for backtesting volume.
-DEFAULT_MODEL = "gemini-2.5-flash-lite"
+DEFAULT_MODEL = "llama-3.3-70b-versatile"
 
 
 def generate_structured[T: BaseModel](
@@ -26,22 +25,21 @@ def generate_structured[T: BaseModel](
     temperature: float = 0.0,
 ) -> T:
     """Call the LLM and return a validated instance of ``schema`` (a pydantic model)."""
-    from google import genai
-    from google.genai import types
+    from groq import Groq
 
-    client = genai.Client(api_key=get_settings().google_api_key)
-    resp = client.models.generate_content(
-        model=model,
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json",
-            response_schema=schema,
-            temperature=temperature,
-        ),
+    client = Groq(api_key=get_settings().groq_api_key)
+    schema_hint = json.dumps(schema.model_json_schema())
+    full_prompt = (
+        f"{prompt}\n\nReturn ONLY a JSON object conforming to this JSON Schema "
+        f"(no markdown, no commentary):\n{schema_hint}"
     )
-    parsed = resp.parsed
-    if isinstance(parsed, schema):
-        return parsed
-    if resp.text is None:
-        raise RuntimeError("LLM returned neither a parsed object nor text")
-    return schema(**json.loads(resp.text))
+    resp = client.chat.completions.create(
+        model=model,
+        messages=[{"role": "user", "content": full_prompt}],
+        response_format={"type": "json_object"},
+        temperature=temperature,
+    )
+    content = resp.choices[0].message.content
+    if content is None:
+        raise RuntimeError("LLM returned empty content")
+    return schema.model_validate_json(content)

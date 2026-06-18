@@ -36,8 +36,9 @@ class Settings(BaseSettings):
 
     database_url: str = "sqlite:///data/equity_agent.db"
 
-    # LLM (Phase 2) — Gemini is the active provider (free tier); Claude optional later.
-    google_api_key: str | None = None
+    # LLM (Phase 2) — Groq is the active provider (free tier, high daily quota).
+    groq_api_key: str | None = None
+    google_api_key: str | None = None  # Gemini, kept as a fallback
     anthropic_api_key: str | None = None
 
     # Execution broker (Phase 4) — IBKR (TWS/Gateway). Alpaca dropped (not in Ukraine).
