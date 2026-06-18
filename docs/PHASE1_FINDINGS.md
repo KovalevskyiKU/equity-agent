@@ -75,3 +75,21 @@ bull its caution was a drag. Driven by the one validated signal (volatility).
 Caveats: 3 hand-picked windows, 3 correlated names, features-only, not full
 walk-forward — directional evidence, not a verdict. Next: add Kronos, rolling
 multi-window / walk-forward, decide objective (risk-adjusted vs absolute).
+
+## Mechanical strategy sweep — no LLM, 66 rolling 6mo windows (2026-06-18)
+
+Median over 66 rolling windows (step 2mo), full history, AAPL/NVDA/JPM:
+
+| strategy              | median Sharpe | median maxDD | median return |
+|-----------------------|---------------|--------------|---------------|
+| basket (equal-weight) | 1.66          | -13.4%       | +20.2%        |
+| vol-target            | 1.49          | -11.3%       | +16.2%        |
+| SPY                   | 1.07          | -9.0%        | +6.5%         |
+
+vol-target beats the basket on Sharpe in only 27% of windows and has a shallower
+drawdown in 41%. **Sobering:** over this tech-heavy decade the equal-weight
+basket dominates risk-adjusted; mechanical risk management (vol targeting) mostly
+gave up return for little average risk benefit — it helps only in the minority
+of crash windows (COVID/2022). Implications: the bar for the LLM agent is high
+(beat basket Sharpe ~1.66), and diversifying the universe likely matters more
+than the allocator on 3 correlated names. Objective chosen: risk-adjusted.

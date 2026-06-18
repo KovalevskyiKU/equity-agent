@@ -162,7 +162,7 @@ def kronos_eval_cmd(
 
 @app.command()
 def backtest(
-    strategy: str = typer.Option("buy-hold", help="buy-hold | momentum (demo)"),
+    strategy: str = typer.Option("buy-hold", help="buy-hold | vol-target | momentum (demo)"),
     lookback: int = typer.Option(20, help="lookback for the momentum demo"),
     fee_bps: float = typer.Option(1.0, help="per-side commission, bps"),
     slippage_bps: float = typer.Option(5.0, help="slippage vs open, bps"),
@@ -182,11 +182,12 @@ def backtest(
     if open_u.empty:
         typer.echo("No price data. Run `eqa ingest` first.")
         raise typer.Exit(1)
-    weights = (
-        strat.momentum_long_flat(close_u, lookback=lookback)
-        if strategy == "momentum"
-        else strat.buy_and_hold_equal(close_u)
-    )
+    if strategy == "momentum":
+        weights = strat.momentum_long_flat(close_u, lookback=lookback)
+    elif strategy == "vol-target":
+        weights = strat.vol_target_weights(close_u)
+    else:
+        weights = strat.buy_and_hold_equal(close_u)
     res = run_backtest(open_u, close_u, weights, config)
 
     open_b, close_b = load_price_panels([cfg.benchmark])
@@ -303,6 +304,40 @@ def backtest_llm_cmd(
             f"{key:<14}{rep.strategy[key]:>12.3f}{rep.voltarget[key]:>12.3f}"
             f"{rep.basket[key]:>12.3f}{rep.benchmark[key]:>12.3f}"
         )
+
+
+@app.command("backtest-sweep")
+def backtest_sweep_cmd(
+    window_months: int = typer.Option(6, help="window length in months"),
+    step_months: int = typer.Option(2, help="months between window starts"),
+    fee_bps: float = typer.Option(1.0, help="per-side commission, bps"),
+    slippage_bps: float = typer.Option(5.0, help="slippage vs open, bps"),
+) -> None:
+    """Rolling-window comparison of mechanical strategies over full history (no LLM)."""
+    setup_logging()
+    init_db()
+    from .backtest.sweep import run_sweep
+
+    cfg = load_config()
+    per, agg = run_sweep(
+        cfg.universe,
+        cfg.benchmark,
+        window_months=window_months,
+        step_months=step_months,
+        fee_bps=fee_bps,
+        slippage_bps=slippage_bps,
+    )
+    n_windows = per["window_end"].nunique()
+    typer.echo(f"\n=== Rolling {window_months}mo windows, step {step_months}mo, n={n_windows} ===")
+    typer.echo(agg.to_string(index=False))
+
+    # Head-to-head: vol-target vs basket across windows.
+    sharpe = per.pivot(index="window_end", columns="strategy", values="sharpe")
+    mdd = per.pivot(index="window_end", columns="strategy", values="max_drawdown")
+    beat = float((sharpe["voltgt"] > sharpe["basket"]).mean()) * 100
+    shallower = float((mdd["voltgt"] > mdd["basket"]).mean()) * 100
+    typer.echo(f"\nvol-target beats basket on Sharpe in {beat:.0f}% of windows")
+    typer.echo(f"vol-target shallower drawdown than basket in {shallower:.0f}% of windows")
 
 
 @app.command()
