@@ -110,3 +110,18 @@ Diversification did the heavy lifting: the basket's median drawdown fell from
 -13.4% (3 tech names) to -8.2%. vol-target now genuinely protects — shallower
 drawdown than the basket in 67% of windows (vs 41% on 3 names) — at a small return
 cost and ~neutral Sharpe. Cleaner, more realistic baseline; LLM bar ~Sharpe 1.56.
+
+### Kronos as a mechanical rule — 12mo, diversified universe (no LLM)
+
+Long-tilt by Kronos P(up)-0.5 per name, risk-capped:
+
+| metric | kronos | voltgt | basket | SPY  |
+|--------|--------|--------|--------|------|
+| return | 7.9%   | 13.4%  | 18.5%  | 24.4%|
+| Sharpe | 0.80   | 1.19   | 1.55   | 1.78 |
+| max DD | -9.7%  | -10.0% | -10.0% | -9.1%|
+
+**Kronos-as-rule is the worst of all four** — it underperforms vol-target, the
+basket and SPY on both return and Sharpe. Consistent with the weak directional IC
+(~0.1, mostly AAPL): Kronos' P(up) does not carry tradable edge as a standalone
+rule on this universe. Treat Kronos as at most a minor input, not a driver.
