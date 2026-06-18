@@ -15,14 +15,12 @@ import pandas as pd
 from pydantic import BaseModel
 from sqlalchemy import select
 
-from ..config import get_settings
 from ..data.news import fetch_company_news
+from ..llm import DEFAULT_MODEL, generate_structured
 from ..storage.db import session_scope
 from ..storage.models import NewsItem
 
 logger = logging.getLogger("equity_agent")
-
-DEFAULT_MODEL = "gemini-2.5-flash"
 
 _PROMPT = (
     "You are a financial news analyst. Score this news for the stock {symbol}.\n"
@@ -43,27 +41,11 @@ def _clamp(x: float, lo: float, hi: float) -> float:
 
 
 def score_article(
-    client: object, model: str, symbol: str, headline: str, summary: str
+    symbol: str, headline: str, summary: str, model: str = DEFAULT_MODEL
 ) -> SentimentOut:
-    """One Gemini call → validated sentiment score."""
-    from google.genai import types
-
+    """One LLM call → validated sentiment score."""
     prompt = _PROMPT.format(symbol=symbol, headline=headline, summary=summary or "(none)")
-    resp = client.models.generate_content(  # type: ignore[attr-defined]
-        model=model,
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json",
-            response_schema=SentimentOut,
-            temperature=0.0,
-        ),
-    )
-    parsed = resp.parsed
-    if isinstance(parsed, SentimentOut):
-        return parsed
-    import json
-
-    return SentimentOut(**json.loads(resp.text))
+    return generate_structured(prompt, SentimentOut, model=model)
 
 
 def fetch_score_store(
@@ -74,8 +56,6 @@ def fetch_score_store(
     limit: int | None = None,
 ) -> dict[str, int]:
     """Fetch news, score new (uncached) articles with Gemini, store them. Returns counts."""
-    from google import genai
-
     articles = fetch_company_news(symbol, start, end)
     with session_scope() as session:
         known = set(session.scalars(select(NewsItem.url)).all())
@@ -83,11 +63,10 @@ def fetch_score_store(
     if limit is not None:
         todo = todo[:limit]
 
-    client = genai.Client(api_key=get_settings().google_api_key)
     scored = 0
     for art in todo:
         try:
-            s = score_article(client, model, symbol, art.headline, art.summary)
+            s = score_article(symbol, art.headline, art.summary, model)
         except Exception as e:  # noqa: BLE001 - one bad article shouldn't stop the batch
             logger.warning("[%s] scoring failed for %s: %s", symbol, art.url[:60], e)
             continue

@@ -232,6 +232,31 @@ def news(
 
 
 @app.command()
+def decide(
+    symbol: str = typer.Argument(..., help="ticker, e.g. AAPL"),
+    model: str = typer.Option("gemini-2.5-flash", help="Gemini model"),
+    kronos: bool = typer.Option(True, help="include the Kronos signal (one model run)"),
+    max_weight: float = typer.Option(0.34, help="max portfolio weight per name"),
+) -> None:
+    """Today's LLM trading decision for a symbol, from the current point-in-time signals."""
+    setup_logging()
+    init_monitoring()
+    init_db()
+    from .decision.agent import decide as run_decide
+    from .signals.bundle import build_bundle
+
+    bundle = build_bundle(symbol, with_kronos=kronos)
+    out = run_decide(bundle, model=model, max_weight=max_weight)
+
+    typer.echo(f"\nSignals for {symbol}: {bundle}")
+    typer.echo(
+        f"\nDECISION: {out.action}  weight={out.target_weight:.2f}  "
+        f"confidence={out.confidence:.2f}"
+    )
+    typer.echo(f"Rationale: {out.rationale}")
+
+
+@app.command()
 def status() -> None:
     """Show how many bars are stored per symbol."""
     init_db()
