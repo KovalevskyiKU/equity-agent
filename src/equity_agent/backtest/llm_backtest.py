@@ -51,19 +51,20 @@ def build_llm_weights(
     weights = pd.DataFrame(index=calendar, columns=symbols, dtype=float)
     calls = 0
     for i, dt in enumerate(decision_dates, start=1):
+        asof = dt.date() if isinstance(dt, pd.Timestamp) else dt
         for sym in symbols:
             try:
                 bundle = build_bundle(
-                    sym, asof=dt.date(), with_kronos=with_kronos, with_sentiment=with_sentiment
+                    sym, asof=asof, with_kronos=with_kronos, with_sentiment=with_sentiment
                 )
                 out = decide(bundle, model=model, max_weight=max_weight)
                 weights.loc[dt, sym] = out.target_weight
             except Exception as e:  # noqa: BLE001 - one failed decision shouldn't stop the run
-                logger.warning("decide failed for %s @ %s: %s", sym, dt.date(), e)
+                logger.warning("decide failed for %s @ %s: %s", sym, asof, e)
             calls += 1
             if delay:
                 time.sleep(delay)
-        logger.info("  decided %s (%d/%d dates)", dt.date(), i, len(decision_dates))
+        logger.info("  decided %s (%d/%d dates)", asof, i, len(decision_dates))
     return weights.ffill().fillna(0.0), calls
 
 
@@ -85,8 +86,9 @@ def run_llm_backtest(
     if close_px.empty:
         raise RuntimeError("No price data; run `eqa ingest` first.")
 
-    cutoff = close_px.index.max() - pd.Timedelta(days=int(months * 31))
-    cal = close_px.index[close_px.index >= cutoff]
+    idx_dt = pd.to_datetime(close_px.index)
+    cutoff = idx_dt.max() - pd.Timedelta(days=int(months * 31))
+    cal = close_px.index[idx_dt >= cutoff]
     logger.info(
         "LLM backtest: %d symbols, %d trading days, rebalance every %d",
         len(symbols), len(cal), rebalance_days,
