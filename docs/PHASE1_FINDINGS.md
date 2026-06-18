@@ -50,7 +50,26 @@ artifact (n=33). Retracted.
 
 ## Open decisions (awaiting alignment)
 
-- Signal combination method: weights / ensemble / meta-model.
-- Backtest engine: custom event-driven vs backtrader.
-- API keys for: LLM sentiment (Anthropic), fundamentals/news (Finnhub/FMP),
-  macro (FRED), execution (Alpaca).
+- (resolved) Combination = lean LLM agent; engine = custom event-driven; LLM =
+  Groq free tier (Gemini free was ~20 req/day); broker target = IBKR (Phase 4).
+
+## Phase 2 — first valid LLM-agent backtest (2026-06-18)
+
+Lean agent (Groq llama-3.3-70b), last 6 months, AAPL/NVDA/JPM, weekly rebalance,
+features-only (no sentiment/Kronos), vs SPY buy-and-hold. All 26 decision calls
+succeeded.
+
+| metric        | LLM agent | SPY    |
+|---------------|-----------|--------|
+| total return  | +0.2%     | +9.0%  |
+| CAGR          | 0.4%      | 18.7%  |
+| ann vol       | 7.3%      | 13.8%  |
+| Sharpe        | 0.10      | 1.31   |
+| max drawdown  | -5.6%     | -9.1%  |
+
+The agent badly underperformed: low vol + ~flat return = it stayed
+under-invested through a rising market (conservative prompt + weak signals). One
+short, single-regime, features-only sample — a baseline to beat, not a verdict.
+Levers to try: less-timid prompt, lean harder on the validated volatility
+signal, add Kronos + sentiment, longer / multi-regime windows, and also
+benchmark vs the equal-weight basket (not only SPY).
