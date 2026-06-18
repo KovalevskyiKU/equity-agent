@@ -53,23 +53,25 @@ artifact (n=33). Retracted.
 - (resolved) Combination = lean LLM agent; engine = custom event-driven; LLM =
   Groq free tier (Gemini free was ~20 req/day); broker target = IBKR (Phase 4).
 
-## Phase 2 — first valid LLM-agent backtest (2026-06-18)
+## Phase 2 — LLM-agent backtest across regimes (2026-06-18)
 
-Lean agent (Groq llama-3.3-70b), last 6 months, AAPL/NVDA/JPM, weekly rebalance,
-features-only (no sentiment/Kronos), vs SPY buy-and-hold. All 26 decision calls
-succeeded.
+Lean agent (Groq llama-3.3-70b), AAPL/NVDA/JPM, weekly rebalance, features-only
+(no sentiment/Kronos), vs an equal-weight basket and SPY. The first prompt was
+too timid (sat in cash, Sharpe 0.10); reframed for long-only (default invested,
+trim only on adverse signals). Sharpe by 6-month window:
 
-| metric        | LLM agent | SPY    |
-|---------------|-----------|--------|
-| total return  | +0.2%     | +9.0%  |
-| CAGR          | 0.4%      | 18.7%  |
-| ann vol       | 7.3%      | 13.8%  |
-| Sharpe        | 0.10      | 1.31   |
-| max drawdown  | -5.6%     | -9.1%  |
+| window (6mo to) | regime              | LLM   | basket | SPY   |
+|-----------------|---------------------|-------|--------|-------|
+| 2026-06 latest  | calm bull           | 0.66  | 1.10   | 1.31  |
+| 2020-06         | COVID crash+rebound | 0.88  | 0.72   | 0.01  |
+| 2022-10         | 2022 bear           | -0.41 | -0.42  | -0.58 |
 
-The agent badly underperformed: low vol + ~flat return = it stayed
-under-invested through a rising market (conservative prompt + weak signals). One
-short, single-regime, features-only sample — a baseline to beat, not a verdict.
-Levers to try: less-timid prompt, lean harder on the validated volatility
-signal, add Kronos + sentiment, longer / multi-regime windows, and also
-benchmark vs the equal-weight basket (not only SPY).
+The agent behaves like a **risk-managed** strategy: in every window it ran lower
+volatility and shallower max-drawdown than the basket (COVID DD -25% vs -35%;
+2022 -19% vs -27%). In the volatile/adverse windows it beat the basket on return
+AND risk (COVID +14.6% vs +13.5%, SPY -4.6%; 2022 -7.4% vs -11.2%); in the calm
+bull its caution was a drag. Driven by the one validated signal (volatility).
+
+Caveats: 3 hand-picked windows, 3 correlated names, features-only, not full
+walk-forward — directional evidence, not a verdict. Next: add Kronos, rolling
+multi-window / walk-forward, decide objective (risk-adjusted vs absolute).
