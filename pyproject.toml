@@ -21,6 +21,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+llm = [
+    "google-genai>=0.3",
+]
 kronos = [
     "torch>=2.2",
     "transformers>=4.40",

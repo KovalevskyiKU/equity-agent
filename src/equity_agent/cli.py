@@ -203,6 +203,35 @@ def backtest(
 
 
 @app.command()
+def news(
+    symbol: str = typer.Argument(..., help="ticker, e.g. AAPL"),
+    days: int = typer.Option(7, help="lookback days of news"),
+    model: str = typer.Option("gemini-2.5-flash", help="Gemini model"),
+    limit: int = typer.Option(0, help="max new articles to score (0 = all)"),
+) -> None:
+    """Fetch recent news, score sentiment with Gemini, store, show daily sentiment."""
+    from datetime import timedelta
+
+    log = setup_logging()
+    init_monitoring()
+    init_db()
+    from .signals.sentiment import fetch_score_store, get_daily_sentiment
+
+    end = date.today()
+    start = end - timedelta(days=days)
+    result = fetch_score_store(symbol, start, end, model=model, limit=limit or None)
+    log.info("news[%s]: fetched=%d scored=%d cached=%d", symbol, *(
+        result["fetched"], result["scored"], result["cached"]))
+
+    daily = get_daily_sentiment(symbol)
+    if daily.empty:
+        typer.echo("No scored news yet.")
+    else:
+        typer.echo("\nDaily impact-weighted sentiment (last 10):")
+        typer.echo(daily.tail(10).round(3).to_string())
+
+
+@app.command()
 def status() -> None:
     """Show how many bars are stored per symbol."""
     init_db()
