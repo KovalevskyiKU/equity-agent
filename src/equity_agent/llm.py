@@ -15,10 +15,11 @@ from pydantic import BaseModel
 
 from .config import get_settings
 
-# 8b-instant has a much larger free-tier daily token budget than 70b-versatile
-# (which is only 100k tokens/day) — needed for backtest volume. 70b is better
-# quality for occasional live decisions.
-DEFAULT_MODEL = "llama-3.1-8b-instant"
+# 70b-versatile: best free-tier quality. Free TPD is ~100k tokens/day (≈3 backtest
+# windows/day), so spend it deliberately — the retry fix above prevents the storms
+# that exhausted it. 8b-instant has far more daily tokens but decided badly
+# (negative Sharpe in a bull); use it only for bulk/low-stakes calls via --model.
+DEFAULT_MODEL = "llama-3.3-70b-versatile"
 
 
 def generate_structured[T: BaseModel](
