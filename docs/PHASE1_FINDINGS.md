@@ -141,3 +141,22 @@ inconsistent; has not beaten the basket risk-adjusted in any clean window. (The
 failed.) **Accumulating picture: no "smart" layer — Kronos, momentum, or the LLM
 agent — has beaten the diversified basket + mild vol-management on a risk-adjusted
 basis in clean tests.** Basket + vol-management is the baseline to beat; nothing has yet.
+
+## Locked core strategy (pivot, 2026-06-19)
+
+Core = **vol-target weights over the diversified 8-name universe** (per-name cap
+0.34, gross <= 1), **NO circuit breaker**. Full history (2015-2026):
+
+| metric       | core (vol-target) | basket | SPY   |
+|--------------|-------------------|--------|-------|
+| total return | 8.65x             | 8.52x  | 2.66x |
+| Sharpe       | 1.13              | 1.11   | 0.73  |
+| max DD       | -34%              | -34%   | -34%  |
+
+vol-target ≈ equal-weight basket full-history (Sharpe 1.13 vs 1.11); both beat SPY
+~3x on return at similar Sharpe. The drawdown circuit breaker HURTS even at 25%
+(return 8.65x -> 1.31x, Sharpe -> 0.67): it liquidates into V-shaped crashes
+(2020/2022) and misses the recovery — keep it OFF (only a very deep tail backstop).
+Honest core: **diversification is the edge**; vol-target is the principled
+allocator; risk overlays add little to nothing over this period. The job now is
+disciplined execution (paper loop) + monitoring + a narrow LLM news risk-off gate.

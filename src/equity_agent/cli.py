@@ -193,17 +193,21 @@ def backtest(
         weights = strat.buy_and_hold_equal(close_u)
     res = run_backtest(open_u, close_u, weights, config)
 
+    # Benchmarks are passive — no circuit breaker, just fees/slippage.
+    bench_cfg = BacktestConfig(fee_bps=fee_bps, slippage_bps=slippage_bps)
+    basket = run_backtest(open_u, close_u, strat.buy_and_hold_equal(close_u), bench_cfg)
     open_b, close_b = load_price_panels([cfg.benchmark])
-    bench = run_backtest(open_b, close_b, strat.single_asset(close_b, cfg.benchmark), config)
+    bench = run_backtest(open_b, close_b, strat.single_asset(close_b, cfg.benchmark), bench_cfg)
 
     strat_m = return_summary(res.returns)
+    basket_m = return_summary(basket.returns)
     bench_m = return_summary(bench.returns)
-    typer.echo(f"\n=== {strategy} (universe) vs {cfg.benchmark} buy-and-hold ===")
-    typer.echo(f"{'metric':<14}{strategy:>14}{cfg.benchmark:>14}")
+    typer.echo(f"\n=== {strategy} vs basket vs {cfg.benchmark} (full history) ===")
+    typer.echo(f"{'metric':<14}{strategy:>14}{'basket':>14}{cfg.benchmark:>14}")
     for key in ("total_return", "cagr", "ann_vol", "sharpe", "sortino", "max_drawdown", "calmar"):
-        typer.echo(f"{key:<14}{strat_m[key]:>14.3f}{bench_m[key]:>14.3f}")
-    typer.echo(f"{'n_trades':<14}{res.n_trades:>14}{bench.n_trades:>14}")
-    typer.echo(f"{'turnover':<14}{res.turnover:>14.2f}{bench.turnover:>14.2f}")
+        typer.echo(f"{key:<14}{strat_m[key]:>14.3f}{basket_m[key]:>14.3f}{bench_m[key]:>14.3f}")
+    typer.echo(f"{'n_trades':<14}{res.n_trades:>14}{basket.n_trades:>14}{bench.n_trades:>14}")
+    typer.echo(f"{'turnover':<14}{res.turnover:>14.2f}{basket.turnover:>14.2f}{bench.turnover:>14.2f}")
 
 
 @app.command()
