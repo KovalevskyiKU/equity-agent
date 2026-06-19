@@ -125,3 +125,19 @@ Long-tilt by Kronos P(up)-0.5 per name, risk-capped:
 basket and SPY on both return and Sharpe. Consistent with the weak directional IC
 (~0.1, mostly AAPL): Kronos' P(up) does not carry tradable edge as a standalone
 rule on this universe. Treat Kronos as at most a minor input, not a driver.
+
+### LLM agent on diversified universe — clean recent 6mo run (2026-06-19)
+
+| metric  | LLM    | voltgt | basket | SPY    |
+|---------|--------|--------|--------|--------|
+| Sharpe  | 0.77   | 0.94   | 1.14   | 1.41   |
+| ann vol | 24.9%  | 11.3%  | 11.7%  | 13.8%  |
+| max DD  | -17.6% | -8.6%  | -8.5%  | -9.1%  |
+
+On 8 names the LLM took concentrated, high-vol positions (worst Sharpe) — the
+opposite of its timid/defensive behaviour on 3 names. Prompt-sensitive and
+inconsistent; has not beaten the basket risk-adjusted in any clean window. (The
+2022 window this session was invalid — hit the ~100k tokens/day cap, 10/26 dates
+failed.) **Accumulating picture: no "smart" layer — Kronos, momentum, or the LLM
+agent — has beaten the diversified basket + mild vol-management on a risk-adjusted
+basis in clean tests.** Basket + vol-management is the baseline to beat; nothing has yet.
