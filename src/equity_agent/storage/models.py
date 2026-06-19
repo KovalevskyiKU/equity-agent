@@ -128,3 +128,14 @@ class EquitySnapshot(Base):
     cash: Mapped[float] = mapped_column(Float)
     positions_value: Mapped[float] = mapped_column(Float)
     equity: Mapped[float] = mapped_column(Float)
+
+
+class Account(Base):
+    """Single-row paper-trading cash account (id always 1)."""
+
+    __tablename__ = "account"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    cash: Mapped[float] = mapped_column(Float)
+    starting_cash: Mapped[float] = mapped_column(Float)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)

@@ -378,6 +378,61 @@ def backtest_kronos_cmd(
         typer.echo(f"{key:<14}" + "".join(f"{res[c][key]:>12.3f}" for c in cols))
 
 
+@app.command("paper-reset")
+def paper_reset_cmd(cash: float = typer.Option(100000.0, help="starting cash")) -> None:
+    """Reset the paper-trading account (wipes positions/trades/equity)."""
+    setup_logging()
+    init_db()
+    from .execution.paper_broker import reset_account
+
+    reset_account(cash)
+    typer.echo(f"Paper account reset to ${cash:,.2f}")
+
+
+@app.command("paper-run")
+def paper_run_cmd(
+    fee_bps: float = typer.Option(1.0, help="per-side commission, bps"),
+    slippage_bps: float = typer.Option(5.0, help="slippage vs price, bps"),
+    cash: float = typer.Option(100000.0, help="starting cash if no account yet"),
+) -> None:
+    """Run one daily paper rebalance to the core strategy weights."""
+    log = setup_logging()
+    init_monitoring()
+    init_db()
+    from .execution.runner import run_paper
+
+    res = run_paper(fee_bps=fee_bps, slippage_bps=slippage_bps, starting_cash=cash)
+    log.info(
+        "Paper: cash=$%.2f positions=$%.2f equity=$%.2f (%d names)",
+        res["cash"], res["positions_value"], res["equity"], int(res["n_positions"]),
+    )
+
+
+@app.command("paper-status")
+def paper_status_cmd() -> None:
+    """Show the paper account: cash, equity, open positions."""
+    setup_logging()
+    init_db()
+    from sqlalchemy import desc, select
+
+    from .storage import session_scope
+    from .storage.models import Account, EquitySnapshot, Position
+
+    with session_scope() as s:
+        acc = s.get(Account, 1)
+        if acc is None:
+            typer.echo("No paper account. Run `eqa paper-reset` then `eqa paper-run`.")
+            return
+        positions = s.scalars(select(Position)).all()
+        last = s.scalars(select(EquitySnapshot).order_by(desc(EquitySnapshot.ts))).first()
+        typer.echo(f"cash:   ${acc.cash:,.2f}   (start ${acc.starting_cash:,.2f})")
+        if last is not None:
+            typer.echo(f"equity: ${last.equity:,.2f}   positions: ${last.positions_value:,.2f}")
+        typer.echo("positions:")
+        for p in positions:
+            typer.echo(f"  {p.symbol:6} qty={p.qty:.4f}  avg=${p.avg_price:.2f}")
+
+
 @app.command()
 def status() -> None:
     """Show how many bars are stored per symbol."""

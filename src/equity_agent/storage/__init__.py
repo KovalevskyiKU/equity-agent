@@ -6,6 +6,7 @@ A Parquet feature-store (Phase 1) will live alongside this for columnar reads.
 
 from .db import get_engine, init_db, session_scope
 from .models import (
+    Account,
     Base,
     DailyBar,
     Decision,
@@ -17,6 +18,7 @@ from .models import (
 )
 
 __all__ = [
+    "Account",
     "Base",
     "DailyBar",
     "Decision",
