@@ -394,6 +394,8 @@ def paper_run_cmd(
     fee_bps: float = typer.Option(1.0, help="per-side commission, bps"),
     slippage_bps: float = typer.Option(5.0, help="slippage vs price, bps"),
     cash: float = typer.Option(100000.0, help="starting cash if no account yet"),
+    risk_off: bool = typer.Option(False, help="apply LLM news risk-off gate"),
+    news_days: int = typer.Option(3, help="news lookback for the risk-off gate"),
 ) -> None:
     """Run one daily paper rebalance to the core strategy weights."""
     log = setup_logging()
@@ -401,7 +403,10 @@ def paper_run_cmd(
     init_db()
     from .execution.runner import run_paper
 
-    res = run_paper(fee_bps=fee_bps, slippage_bps=slippage_bps, starting_cash=cash)
+    res = run_paper(
+        fee_bps=fee_bps, slippage_bps=slippage_bps, starting_cash=cash,
+        risk_off=risk_off, news_days=news_days,
+    )
     log.info(
         "Paper: cash=$%.2f positions=$%.2f equity=$%.2f (%d names)",
         res["cash"], res["positions_value"], res["equity"], int(res["n_positions"]),
