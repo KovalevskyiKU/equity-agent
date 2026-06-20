@@ -439,6 +439,21 @@ def paper_status_cmd() -> None:
 
 
 @app.command()
+def dashboard(port: int = typer.Option(8501, help="port to serve on")) -> None:
+    """Launch the Streamlit dashboard (needs the [ui] extra)."""
+    import subprocess
+    import sys
+
+    from .config import PROJECT_ROOT
+
+    app_path = PROJECT_ROOT / "dashboard_app.py"
+    subprocess.run(  # noqa: S603
+        [sys.executable, "-m", "streamlit", "run", str(app_path), "--server.port", str(port)],
+        check=False,
+    )
+
+
+@app.command()
 def status() -> None:
     """Show how many bars are stored per symbol."""
     init_db()

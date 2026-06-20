@@ -59,6 +59,19 @@ eqa kronos-signal AAPL --horizon 10 --samples 20
 
 Weights download from HuggingFace on first run (no token needed).
 
+Paper trading and the dashboard:
+
+```cmd
+eqa paper-reset --cash 100000   :: start a paper account
+eqa paper-run --risk-off        :: rebalance to the core (vol-target) + LLM news gate
+eqa paper-status                :: cash / equity / positions
+pip install -e ".[ui]"
+eqa dashboard                   :: Streamlit dashboard at http://localhost:8501
+```
+
+Backtesting: `eqa backtest --strategy vol-target`, `eqa backtest-sweep` (rolling,
+no LLM), `eqa backtest-llm` (LLM agent), `eqa backtest-kronos` (Kronos rule).
+
 Universe and other non-secret params live in [`config.yaml`](config.yaml);
 secrets (API keys, `DATABASE_URL`) live in `.env` (gitignored).
 
