@@ -439,6 +439,31 @@ def paper_status_cmd() -> None:
 
 
 @app.command()
+def daily(
+    risk_off: bool = typer.Option(True, help="apply the LLM news risk-off gate"),
+) -> None:
+    """Full daily cycle: ingest latest bars -> rebuild features -> paper rebalance."""
+    from datetime import UTC, datetime, timedelta
+
+    log = setup_logging()
+    init_monitoring()
+    init_db()
+    from .data import YFinanceProvider, ingest_daily_bars
+    from .execution.runner import run_paper
+    from .signals.feature_store import build_feature_store
+
+    cfg = load_config()
+    today = datetime.now(UTC).date()
+    ingest_daily_bars(cfg.all_data_symbols, today - timedelta(days=10), today, YFinanceProvider())
+    build_feature_store()
+    res = run_paper(risk_off=risk_off)
+    log.info(
+        "Daily done: equity=$%.2f cash=$%.2f (%d names held)",
+        res["equity"], res["cash"], int(res["n_positions"]),
+    )
+
+
+@app.command()
 def dashboard(port: int = typer.Option(8501, help="port to serve on")) -> None:
     """Launch the Streamlit dashboard (needs the [ui] extra)."""
     import subprocess

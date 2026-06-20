@@ -72,6 +72,18 @@ eqa dashboard                   :: Streamlit dashboard at http://localhost:8501
 Backtesting: `eqa backtest --strategy vol-target`, `eqa backtest-sweep` (rolling,
 no LLM), `eqa backtest-llm` (LLM agent), `eqa backtest-kronos` (Kronos rule).
 
+### Run it daily (orchestration)
+
+`eqa daily` does the whole cycle: ingest latest bars → rebuild features → paper
+rebalance (with the risk-off gate). Schedule it on Windows after the US close:
+
+```
+Task Scheduler → Create Task → Daily ~22:35 (your TZ, after 16:00 ET close)
+  Program:   D:\Portative workhub\equity-agent\.venv\Scripts\eqa.exe
+  Arguments: daily
+  Start in:  D:\Portative workhub\equity-agent
+```
+
 Universe and other non-secret params live in [`config.yaml`](config.yaml);
 secrets (API keys, `DATABASE_URL`) live in `.env` (gitignored).
 
