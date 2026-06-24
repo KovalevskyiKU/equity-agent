@@ -56,3 +56,9 @@ def test_core_target_vol_target_is_long_only_and_capped() -> None:
     target, _ = compute_core_target("vol_target", close_u, pd.DataFrame(), "SPY")
     assert all(w > 0 for w in target.values())
     assert sum(target.values()) <= 1.0 + 1e-9  # gross capped at 100%
+
+
+def test_core_target_exposure_scales_toward_cash() -> None:
+    close_b = pd.DataFrame({"SPY": [400.0, 410.0]})
+    target, _ = compute_core_target("spy", pd.DataFrame(), close_b, "SPY", exposure=0.5)
+    assert target == {"SPY": 0.5}  # half invested, half cash
