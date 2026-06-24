@@ -526,6 +526,62 @@ def walkforward(
         typer.echo(f"{key:<14}{strat[key]:>12.3f}{basket[key]:>12.3f}{spy[key]:>12.3f}")
 
 
+@app.command("live-run")
+def live_run_cmd(
+    execute: bool = typer.Option(
+        False, "--execute", help="TRANSMIT real orders to IBKR (default: dry-run, plan only)"
+    ),
+    min_notional: float = typer.Option(50.0, help="skip orders below this notional"),
+) -> None:
+    """Plan (and with --execute, transmit) IBKR orders to reach the core target.
+
+    Dry-run by default: it connects to TWS/Gateway, prints the orders it WOULD place,
+    and sends nothing. Needs the [ibkr] extra and a running TWS/IB Gateway.
+    """
+    setup_logging()
+    init_db()
+    from .backtest.panels import load_price_panels
+    from .config import get_settings
+    from .execution.ibkr_broker import IBKRBroker
+    from .execution.runner import compute_core_target
+
+    cfg = load_config()
+    s = get_settings()
+    _, close_b = load_price_panels([cfg.benchmark])
+    close_u = load_price_panels(cfg.universe)[1] if cfg.core_strategy != "spy" else None
+    if close_b.empty or (close_u is not None and close_u.empty):
+        typer.echo("No price data. Run `eqa ingest` first.")
+        raise typer.Exit(1)
+    import pandas as pd
+
+    u_panel = close_u if close_u is not None else pd.DataFrame()
+    target, prices = compute_core_target(cfg.core_strategy, u_panel, close_b, cfg.benchmark)
+
+    broker = IBKRBroker(s.ibkr_host, s.ibkr_port, s.ibkr_client_id)
+    try:
+        broker.connect()
+    except Exception as e:  # noqa: BLE001 - surface any connection problem clearly
+        typer.echo(
+            f"Could not connect to IBKR at {s.ibkr_host}:{s.ibkr_port} "
+            f"- is TWS / IB Gateway running and the API enabled? ({e})"
+        )
+        raise typer.Exit(1) from e
+    try:
+        orders = broker.rebalance(target, prices, execute=execute, min_notional=min_notional)
+    finally:
+        broker.disconnect()
+
+    mode = "TRANSMITTED" if execute else "DRY-RUN (nothing sent)"
+    typer.echo(f"\n=== IBKR {mode} - core={cfg.core_strategy} ===")
+    for o in orders:
+        typer.echo(
+            f"  {o.side:<4} {o.symbol:<6} qty={o.qty:g}  "
+            f"~${o.est_notional:,.0f} @ {o.est_price:.2f}"
+        )
+    if not orders:
+        typer.echo("  (no orders - already at target)")
+
+
 @app.command("factor-ic")
 def factor_ic_cmd(
     horizon: int = typer.Option(21, help="forward horizon in trading days (~1 month)"),
@@ -684,6 +740,48 @@ def factor_backtest_pit_cmd(
             f"long-short (idealized, gross): ann_ret={ls['ann_return']:.3f} "
             f"sharpe={ls['sharpe']:.2f} hit={ls['hit_rate'] * 100:.0f}% n={ls['n_periods']}"
         )
+
+
+@app.command()
+def monitor() -> None:
+    """Monitor the paper account: equity, last-run P&L, drawdown, Sharpe, tracking vs SPY."""
+    setup_logging()
+    init_db()
+    from typing import cast
+
+    import pandas as pd
+
+    from .backtest.panels import load_price_panels
+    from .dashboard.data import paper_overview
+    from .monitoring import monitor_summary
+
+    cfg = load_config()
+    ov = paper_overview()
+    if not ov["has_account"]:
+        typer.echo("No paper account. Run `eqa paper-reset` then `eqa paper-run`.")
+        return
+
+    _, close_b = load_price_panels([cfg.benchmark])
+    spy_close = close_b[cfg.benchmark] if not close_b.empty else None
+    s = monitor_summary(cast(pd.DataFrame, ov["equity_curve"]), spy_close)
+    if s.get("snapshots", 0) == 0:
+        typer.echo("No equity snapshots yet. Run `eqa paper-run`.")
+        return
+
+    typer.echo(f"\n=== paper monitor ({s['snapshots']} snapshots) ===")
+    typer.echo(f"equity        ${s['equity']:,.2f}")
+    if "total_return" in s:
+        typer.echo(f"total return  {s['total_return'] * 100:+.2f}%")
+        typer.echo(f"last P&L      ${s['last_pnl']:+,.2f} ({s['last_pnl_pct'] * 100:+.2f}%)")
+        typer.echo(f"max drawdown  {s['max_drawdown'] * 100:.2f}%")
+        typer.echo(f"sharpe        {s['sharpe']:.2f}   ann vol {s['ann_vol'] * 100:.1f}%")
+    if "excess_vs_spy" in s:
+        typer.echo(
+            f"vs {cfg.benchmark:<6}    SPY {s['spy_return'] * 100:+.2f}%  "
+            f"-> excess {s['excess_vs_spy'] * 100:+.2f}%"
+        )
+    elif "total_return" in s:
+        typer.echo(f"vs {cfg.benchmark}: need >=2 snapshots spanning trading days")
 
 
 @app.command()

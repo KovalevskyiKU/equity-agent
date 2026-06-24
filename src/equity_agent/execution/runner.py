@@ -19,24 +19,32 @@ def compute_core_target(
     close_u: pd.DataFrame,
     close_b: pd.DataFrame,
     benchmark: str,
+    exposure: float = 1.0,
 ) -> tuple[dict[str, float], dict[str, float]]:
     """Latest core target weights + prices for the chosen core.
 
     * ``spy`` — hold the cap-weight benchmark (the honest core: research found that
       nothing beats it risk-adjusted once survivorship is removed).
     * ``vol_target`` / ``equal_weight`` — run over the (broad) ``universe`` panel.
+
+    ``exposure`` (<= 1) scales all weights down toward cash — the hook for the
+    vol-target risk overlay; 1.0 leaves the core fully invested.
     """
     if core_strategy == "spy":
         px = float(close_b[benchmark].iloc[-1])
-        return {benchmark: 1.0}, {benchmark: px}
+        target = {benchmark: 1.0}
+        prices = {benchmark: px}
+    else:
+        latest = close_u.iloc[-1]
+        prices = {k: float(v) for k, v in latest.items() if v == v}  # drop NaN
+        if core_strategy == "vol_target":
+            row = vol_target_weights(close_u).iloc[-1]
+        else:  # equal_weight
+            row = buy_and_hold_equal(close_u).iloc[-1]
+        target = {k: float(w) for k, w in row.items() if w > 0 and k in prices}
 
-    latest = close_u.iloc[-1]
-    prices = {k: float(v) for k, v in latest.items() if v == v}  # drop NaN
-    if core_strategy == "vol_target":
-        row = vol_target_weights(close_u).iloc[-1]
-    else:  # equal_weight
-        row = buy_and_hold_equal(close_u).iloc[-1]
-    target = {k: float(w) for k, w in row.items() if w > 0 and k in prices}
+    if exposure < 1.0:
+        target = {k: w * exposure for k, w in target.items()}
     return target, prices
 
 
@@ -66,7 +74,17 @@ def run_paper(
     if (need_universe and close_u.empty) or close_b.empty:
         raise RuntimeError("No price data; run `eqa ingest` first.")
 
-    target, prices = compute_core_target(cfg.core_strategy, close_u, close_b, cfg.benchmark)
+    exposure = 1.0
+    if cfg.risk_overlay == "vol_target":
+        from ..risk.overlay import vol_target_exposure
+
+        spy_returns = close_b[cfg.benchmark].pct_change().dropna()
+        exposure = vol_target_exposure(spy_returns, target_vol=cfg.risk_target_vol)
+        logger.info("risk overlay (vol_target): exposure=%.2f", exposure)
+
+    target, prices = compute_core_target(
+        cfg.core_strategy, close_u, close_b, cfg.benchmark, exposure=exposure
+    )
 
     if risk_off:
         from datetime import UTC, datetime, timedelta

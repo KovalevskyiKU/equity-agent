@@ -80,6 +80,12 @@ class ProjectConfig(BaseModel):
     # equal_weight / vol_target cores run over `universe` (which is now the broad
     # factor-research universe, not a hand-picked basket).
     core_strategy: Literal["spy", "equal_weight", "vol_target"] = "spy"
+    # Optional risk overlay on the core: scale market exposure by target/realized vol
+    # (hold cash when market vol is high). Off by default — research found overlays add
+    # little over a full cycle, but they do cut crash-window drawdowns. A hard drawdown
+    # kill-switch is deliberately NOT offered: it liquidates into V-shaped recoveries.
+    risk_overlay: Literal["none", "vol_target"] = "none"
+    risk_target_vol: float = 0.15  # annualized; used when risk_overlay = vol_target
     regime_symbols: list[str] = Field(default_factory=list)
     timeframe: str = "1d"
     history_start: str = "2015-01-01"
