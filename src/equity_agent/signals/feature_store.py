@@ -108,7 +108,25 @@ def build_market_context() -> pd.DataFrame:
         gld_df = pd.DataFrame({"gld_ret_20": gld["close"].pct_change(20)})
         ctx = gld_df if ctx.empty else ctx.join(gld_df, how="outer")
 
-    return ctx
+    # FRED macro (if ingested): 2s10s yield-curve slope, 10y real yield, HY OAS spread.
+    dgs2, dgs10 = load_bars("DGS2"), load_bars("DGS10")
+    if not dgs2.empty and not dgs10.empty:
+        slope = dgs10["close"] - dgs2["close"]
+        slope_df = pd.DataFrame({"slope_2s10s": slope})
+        ctx = slope_df if ctx.empty else ctx.join(slope_df, how="outer")
+
+    rry = load_bars("DFII10")
+    if not rry.empty:
+        rry_df = pd.DataFrame({"real_yield_10y": rry["close"]})
+        ctx = rry_df if ctx.empty else ctx.join(rry_df, how="outer")
+
+    oas = load_bars("BAMLH0A0HYM2")
+    if not oas.empty:
+        o = oas["close"]
+        oas_df = pd.DataFrame({"hy_oas": o, "hy_oas_chg_20": o - o.shift(20)})
+        ctx = oas_df if ctx.empty else ctx.join(oas_df, how="outer")
+
+    return ctx.sort_index().ffill()
 
 
 def build_symbol_features(symbol: str, context: pd.DataFrame | None = None) -> pd.DataFrame:

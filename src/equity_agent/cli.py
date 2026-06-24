@@ -69,6 +69,14 @@ def ingest(
     total = sum(result.values())
     log.info("Done. Inserted %d new bars across %d symbols.", total, len(result))
 
+    from .config import get_settings
+
+    if get_settings().fred_api_key and cfg.fred_series:
+        from .data.fred import ingest_fred
+
+        fred = ingest_fred(cfg.fred_series, start_d, end_d)
+        log.info("FRED: %d obs across %d series", sum(fred.values()), len(fred))
+
 
 @app.command()
 def features() -> None:

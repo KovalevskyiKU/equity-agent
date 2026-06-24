@@ -187,3 +187,11 @@ forward returns; tlt_ret_20 borderline (1.97); gold/USD ~0. So a coherent regime
 cluster has emerged: **volatility (atr_14, vix) + rates (tnx) + credit
 (HYG−LQD)** — all economically sensible and non-overlap-robust. (Same caveat:
 macro features are shared across names, so even noov t is somewhat inflated.)
+
+FRED (with key) added: **hy_oas (HY credit-spread level) is the single strongest
+feature (IC 0.11, noov t 3.3)** — wide/stressed spreads precede higher forward
+returns (risk-premium / mean-reversion). **Yield-curve slope (2s10s) and 10y real
+yield show NO short-horizon edge** (expected — they are months-to-years macro
+signals, not 10-day). So the validated regime cluster is now: volatility + rates
++ credit (both spread level and HY−IG momentum). Next: a walk-forward
+regime-overlay test — does the cluster actually improve the strategy's P&L?

@@ -30,6 +30,7 @@ _NUMERIC_FEATURES = [c for c in FEATURE_COLUMNS if c not in ("dow", "month")]
 _CONTEXT_FEATURES = [
     "mkt_ret_1", "vix_level", "vix_z", "tnx_level", "tnx_chg_20", "usd_ret_20",
     "credit_ret_20", "tlt_ret_20", "gld_ret_20",
+    "slope_2s10s", "real_yield_10y", "hy_oas", "hy_oas_chg_20",
 ]
 _MIN_OBS = 30
 

@@ -68,6 +68,7 @@ class ProjectConfig(BaseModel):
     regime_symbols: list[str] = Field(default_factory=list)
     timeframe: str = "1d"
     history_start: str = "2015-01-01"
+    fred_series: list[str] = Field(default_factory=list)
     data_dir: Path = Path("data")
 
     @property

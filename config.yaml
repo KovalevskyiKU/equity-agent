@@ -25,4 +25,10 @@ regime_symbols:         # used as market-regime features, not traded (no API key
 timeframe: "1d"         # daily swing — avoids PDT rule, matches news/LLM cadence
 history_start: "2015-01-01"
 
+fred_series:            # macro series from FRED (needs FRED_API_KEY)
+  - DGS2                # 2-year Treasury yield
+  - DGS10               # 10-year Treasury yield  (DGS10-DGS2 = 2s10s slope)
+  - DFII10              # 10-year real yield (TIPS)
+  - BAMLH0A0HYM2        # high-yield credit OAS spread
+
 data_dir: data
