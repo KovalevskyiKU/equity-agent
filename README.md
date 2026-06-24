@@ -65,6 +65,7 @@ Paper trading and the dashboard:
 eqa paper-reset --cash 100000   :: start a paper account
 eqa paper-run --risk-off        :: rebalance to the core (default: hold SPY) + LLM news gate
 eqa paper-status                :: cash / equity / positions
+eqa monitor                     :: equity, P&L, drawdown, Sharpe, tracking vs SPY
 pip install -e ".[ui]"
 eqa dashboard                   :: Streamlit dashboard at http://localhost:8501
 ```

@@ -743,6 +743,48 @@ def factor_backtest_pit_cmd(
 
 
 @app.command()
+def monitor() -> None:
+    """Monitor the paper account: equity, last-run P&L, drawdown, Sharpe, tracking vs SPY."""
+    setup_logging()
+    init_db()
+    from typing import cast
+
+    import pandas as pd
+
+    from .backtest.panels import load_price_panels
+    from .dashboard.data import paper_overview
+    from .monitoring import monitor_summary
+
+    cfg = load_config()
+    ov = paper_overview()
+    if not ov["has_account"]:
+        typer.echo("No paper account. Run `eqa paper-reset` then `eqa paper-run`.")
+        return
+
+    _, close_b = load_price_panels([cfg.benchmark])
+    spy_close = close_b[cfg.benchmark] if not close_b.empty else None
+    s = monitor_summary(cast(pd.DataFrame, ov["equity_curve"]), spy_close)
+    if s.get("snapshots", 0) == 0:
+        typer.echo("No equity snapshots yet. Run `eqa paper-run`.")
+        return
+
+    typer.echo(f"\n=== paper monitor ({s['snapshots']} snapshots) ===")
+    typer.echo(f"equity        ${s['equity']:,.2f}")
+    if "total_return" in s:
+        typer.echo(f"total return  {s['total_return'] * 100:+.2f}%")
+        typer.echo(f"last P&L      ${s['last_pnl']:+,.2f} ({s['last_pnl_pct'] * 100:+.2f}%)")
+        typer.echo(f"max drawdown  {s['max_drawdown'] * 100:.2f}%")
+        typer.echo(f"sharpe        {s['sharpe']:.2f}   ann vol {s['ann_vol'] * 100:.1f}%")
+    if "excess_vs_spy" in s:
+        typer.echo(
+            f"vs {cfg.benchmark:<6}    SPY {s['spy_return'] * 100:+.2f}%  "
+            f"-> excess {s['excess_vs_spy'] * 100:+.2f}%"
+        )
+    elif "total_return" in s:
+        typer.echo(f"vs {cfg.benchmark}: need >=2 snapshots spanning trading days")
+
+
+@app.command()
 def status() -> None:
     """Show how many bars are stored per symbol."""
     init_db()
