@@ -392,8 +392,29 @@ cap-weighted index once survivorship is removed.** The edge remains **cap-weight
 market exposure + diversification + discipline**; SPY is the bar and simple factors
 don't clear it on this universe/period.
 
-If pursued further (low expected payoff): **sector-neutralize** the factors (to strip
-the gross_margin sector tilt) and test a **combined value+quality composite** — the
-two factors with real ICs — rather than single-factor long-only sleeves. Otherwise the
-legitimate factor avenues are exhausted; effort is better spent on execution/risk of
-the cap-weight-tracking core than on hunting price/fundamental alpha here.
+**Capstone — sector-neutral value+quality composite.** The obvious refinement: strip
+the gross_margin sector tilt (z-score each factor *within sector* per date) and combine
+the factors that have a real IC (earnings_yield + roe + gross_margin) into one
+composite (`fundamental_factors.sector_neutralize` / `value_quality_composite`).
+Point-in-time top-quintile, net of costs:
+
+| metric        | composite | basket | SPY   |
+|---------------|----------:|-------:|------:|
+| total return  | 2.80x     | 1.78x  | 2.59x |
+| CAGR          | 12.4%     | 9.3%   | 11.8% |
+| Sharpe        | 0.733     | 0.583  | 0.719 |
+| max drawdown  | −36.3%    | −39.7% | −34.1%|
+
+The composite is the **only construction that doesn't lose to SPY** — it edges it
+(Sharpe 0.733 vs 0.719, 2.80x vs 2.59x, beats SPY in 7/12 calendar years, shallower
+drawdown than the basket). **But the edge is not statistically significant**: the
+composite's own cross-sectional IC is +0.007 (t = 1.21) — neutralizing weakened the
+single-factor ICs (t ≈ 2.2) rather than reinforcing them, and 0.014 Sharpe over SPY is
+within noise. Honest reading: **the best legitimate factor construction reaches ~SPY
+parity, not a confident beat.**
+
+So the legitimate factor avenues are now **exhausted**: momentum, low-vol, value,
+quality, and their sector-neutral composite — at best they *match* the cap-weighted
+index point-in-time; none beats it with statistical confidence. Effort is better spent
+on the **execution/risk of the cap-weight-tracking core** than on hunting further
+price/fundamental alpha on this universe.

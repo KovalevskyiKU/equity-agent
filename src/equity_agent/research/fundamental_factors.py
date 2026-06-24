@@ -14,6 +14,7 @@ expected higher return.
 
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 
 from ..data.fundamentals import load_fundamentals
@@ -69,3 +70,45 @@ def build_fundamental_panels(
         "net_margin": panel(nm_d),
         "gross_margin": panel(gm_d),
     }
+
+
+def sector_neutralize(factor: pd.DataFrame, sectors: dict[str, str]) -> pd.DataFrame:
+    """Cross-sectional z-score within each sector, per date.
+
+    Strips sector tilts so a factor reflects *within-sector* ranking rather than a
+    bet on whichever sector happens to score high (e.g. gross_margin -> tech/health).
+    """
+    sec = pd.Series(sectors).reindex(factor.columns).fillna("Unknown")
+    out = pd.DataFrame(np.nan, index=factor.index, columns=factor.columns)
+    for s in sec.unique():
+        cols = sec.index[sec == s]
+        sub = factor[cols]
+        mu = sub.mean(axis=1)
+        sd = sub.std(axis=1).replace(0.0, np.nan)
+        out[cols] = sub.sub(mu, axis=0).div(sd, axis=0)
+    return out
+
+
+def value_quality_composite(
+    panels: dict[str, pd.DataFrame],
+    sectors: dict[str, str],
+    keys: tuple[str, ...] = ("earnings_yield", "roe", "gross_margin"),
+) -> pd.DataFrame:
+    """Equal-weight mean of sector-neutral z-scores of ``keys`` (NaN-aware).
+
+    The best legitimate construction found: combine the factors with a real
+    cross-sectional IC after removing sector tilts.
+    """
+    base = panels[keys[0]]
+    arr = np.stack(
+        [
+            sector_neutralize(panels[k], sectors)
+            .reindex(index=base.index, columns=base.columns)
+            .to_numpy()
+            for k in keys
+        ]
+    )
+    counts = (~np.isnan(arr)).sum(axis=0)
+    totals = np.nansum(arr, axis=0)
+    comp = np.where(counts > 0, totals / np.maximum(counts, 1), np.nan)
+    return pd.DataFrame(comp, index=base.index, columns=base.columns)

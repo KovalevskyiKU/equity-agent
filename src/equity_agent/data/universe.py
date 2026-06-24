@@ -53,3 +53,13 @@ def fetch_sp500_symbols(timeout: float = 30.0) -> list[str]:
     """Current S&P 500 tickers, normalized for yfinance, sorted and de-duplicated."""
     df = fetch_sp500_table(timeout=timeout)
     return sorted(dict.fromkeys(df["yf_symbol"].tolist()))
+
+
+def sector_map(timeout: float = 30.0) -> dict[str, str]:
+    """{yf_symbol: GICS sector} for current members (used for sector-neutralizing factors).
+
+    Current sectors applied to history — sectors are stable enough that this is a
+    minor approximation; dropped names not in the current table fall back to "Unknown".
+    """
+    df = fetch_sp500_table(timeout=timeout)
+    return dict(zip(df["yf_symbol"], df["GICS Sector"], strict=False))
