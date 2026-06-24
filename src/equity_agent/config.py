@@ -46,7 +46,7 @@ class Settings(BaseSettings):
     gemini_model: str = "gemini-2.5-flash"
     cerebras_api_key: str | None = None
     cerebras_base_url: str = "https://api.cerebras.ai/v1"
-    cerebras_model: str = "llama-3.3-70b"
+    cerebras_model: str = "gpt-oss-120b"
     anthropic_api_key: str | None = None
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "llama3.1:8b"
