@@ -418,3 +418,27 @@ quality, and their sector-neutral composite — at best they *match* the cap-wei
 index point-in-time; none beats it with statistical confidence. Effort is better spent
 on the **execution/risk of the cap-weight-tracking core** than on hunting further
 price/fundamental alpha on this universe.
+
+## Phase 3 — honest core + cost-aware tilt (2026-06-24)
+
+Acted on the verdict. **Core now defaults to holding the cap-weight benchmark**
+(`config.core_strategy = spy`); the paper loop tracks SPY rather than an
+(underperforming, and previously survivorship-conflated) equal-weight basket over the
+broad universe. Methodology locked in `docs/METHODOLOGY.md`; the survivorship-biased
+commands now print a NOTE.
+
+Last factor question — does a **cost-aware tilt** add anything over just holding SPY?
+(Point-in-time, net of costs.)
+
+| strategy                       | Sharpe | total | turnover |
+|--------------------------------|-------:|------:|---------:|
+| composite, monthly rebalance   | 0.733  | 2.80x | 27.8     |
+| composite, annual rebalance    | 0.742  | 2.54x | 11.5     |
+| blend 50/50 basket + composite | 0.661  | 2.25x | 18.2     |
+| **SPY (hold)**                 | 0.719  | 2.59x | 0.0      |
+
+Cutting turnover (annual rebalance) recovers a hair of Sharpe but still doesn't beat
+SPY on return, and the blend is *worse* than SPY (the equal-weight core drags). **A
+cost-aware factor tilt adds nothing over holding SPY.** Final decision: the core is
+SPY-tracking; factor research is closed as an honest null. Remaining work is execution
+(IBKR), risk overlays, and monitoring — not alpha hunting on this universe.
