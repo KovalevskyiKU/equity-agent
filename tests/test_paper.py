@@ -1,4 +1,8 @@
+import numpy as np
+import pandas as pd
+
 from equity_agent.execution.paper_broker import get_positions, rebalance, reset_account
+from equity_agent.execution.runner import compute_core_target
 
 
 def test_paper_rebalance_and_reweight(temp_db: None) -> None:
@@ -26,3 +30,29 @@ def test_fees_reduce_paper_equity(temp_db: None) -> None:
     reset_account(1000.0)
     r = rebalance({"A": 1.0}, {"A": 10.0}, fee_bps=50, slippage_bps=50, starting_cash=1000.0)
     assert r["equity"] < 1000.0  # costs eat into equity
+
+
+def test_core_target_spy_holds_benchmark() -> None:
+    close_b = pd.DataFrame({"SPY": [400.0, 410.0]})
+    target, prices = compute_core_target("spy", pd.DataFrame(), close_b, "SPY")
+    assert target == {"SPY": 1.0}
+    assert prices == {"SPY": 410.0}
+
+
+def test_core_target_equal_weight_over_universe() -> None:
+    close_u = pd.DataFrame({"A": [10.0, 11.0], "B": [20.0, 22.0]})
+    target, prices = compute_core_target("equal_weight", close_u, pd.DataFrame(), "SPY")
+    assert set(target) == {"A", "B"}
+    assert abs(sum(target.values()) - 1.0) < 1e-9
+    assert abs(target["A"] - 0.5) < 1e-9
+    assert prices == {"A": 11.0, "B": 22.0}
+
+
+def test_core_target_vol_target_is_long_only_and_capped() -> None:
+    rng = np.random.default_rng(0)
+    close_u = pd.DataFrame(
+        100 * np.exp(np.cumsum(rng.normal(0, 0.01, (60, 3)), axis=0)), columns=["A", "B", "C"]
+    )
+    target, _ = compute_core_target("vol_target", close_u, pd.DataFrame(), "SPY")
+    assert all(w > 0 for w in target.values())
+    assert sum(target.values()) <= 1.0 + 1e-9  # gross capped at 100%

@@ -21,7 +21,8 @@ venv/
 third_party/
 
 # Data & artifacts (kept out of git — large / machine-local)
-data/
+# Anchored to repo root so it does NOT also ignore the src/equity_agent/data/ package.
+/data/
 *.db
 *.sqlite
 *.parquet

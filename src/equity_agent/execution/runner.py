@@ -4,12 +4,40 @@ from __future__ import annotations
 
 import logging
 
+import pandas as pd
+
 from ..backtest.panels import load_price_panels
-from ..backtest.strategy import vol_target_weights
+from ..backtest.strategy import buy_and_hold_equal, vol_target_weights
 from ..config import load_config
 from .paper_broker import rebalance
 
 logger = logging.getLogger("equity_agent")
+
+
+def compute_core_target(
+    core_strategy: str,
+    close_u: pd.DataFrame,
+    close_b: pd.DataFrame,
+    benchmark: str,
+) -> tuple[dict[str, float], dict[str, float]]:
+    """Latest core target weights + prices for the chosen core.
+
+    * ``spy`` — hold the cap-weight benchmark (the honest core: research found that
+      nothing beats it risk-adjusted once survivorship is removed).
+    * ``vol_target`` / ``equal_weight`` — run over the (broad) ``universe`` panel.
+    """
+    if core_strategy == "spy":
+        px = float(close_b[benchmark].iloc[-1])
+        return {benchmark: 1.0}, {benchmark: px}
+
+    latest = close_u.iloc[-1]
+    prices = {k: float(v) for k, v in latest.items() if v == v}  # drop NaN
+    if core_strategy == "vol_target":
+        row = vol_target_weights(close_u).iloc[-1]
+    else:  # equal_weight
+        row = buy_and_hold_equal(close_u).iloc[-1]
+    target = {k: float(w) for k, w in row.items() if w > 0 and k in prices}
+    return target, prices
 
 
 def run_paper(
@@ -24,18 +52,21 @@ def run_paper(
 ) -> dict[str, float]:
     """Compute the core target weights from latest data and rebalance the paper book.
 
-    With ``risk_off``, refresh recent news sentiment (cheap 8b model) and zero the
-    weight of any name with strongly negative sentiment before rebalancing.
+    The core is selected by ``config.core_strategy`` (default ``spy``). With
+    ``risk_off``, refresh recent news sentiment (cheap 8b model) and zero the weight
+    of any held name with strongly negative sentiment before rebalancing.
     """
     cfg = load_config()
-    _, close_u = load_price_panels(cfg.universe)
-    if close_u.empty:
+    _, close_b = load_price_panels([cfg.benchmark])
+    close_u = pd.DataFrame()
+    if cfg.core_strategy != "spy":
+        _, close_u = load_price_panels(cfg.universe)
+
+    need_universe = cfg.core_strategy != "spy"
+    if (need_universe and close_u.empty) or close_b.empty:
         raise RuntimeError("No price data; run `eqa ingest` first.")
 
-    latest_close = close_u.iloc[-1]
-    prices = {k: float(v) for k, v in latest_close.items() if v == v}  # drop NaN
-    weights_row = vol_target_weights(close_u).iloc[-1]
-    target = {k: float(w) for k, w in weights_row.items() if w > 0 and k in prices}
+    target, prices = compute_core_target(cfg.core_strategy, close_u, close_b, cfg.benchmark)
 
     if risk_off:
         from datetime import UTC, datetime, timedelta
@@ -45,7 +76,7 @@ def run_paper(
 
         end = datetime.now(UTC).date()
         start = end - timedelta(days=news_days)
-        for sym in cfg.universe:
+        for sym in list(target):
             try:
                 fetch_score_store(sym, start, end, model=sentiment_model, limit=score_limit)
             except Exception as e:  # noqa: BLE001 - news scoring is best-effort
@@ -54,7 +85,7 @@ def run_paper(
         if gated:
             logger.info("risk-off gated (negative news): %s", gated)
 
-    logger.info("Paper rebalance to %d names (core = vol-target)", len(target))
+    logger.info("Paper rebalance to %d names (core = %s)", len(target), cfg.core_strategy)
     return rebalance(
         target, prices, fee_bps=fee_bps, slippage_bps=slippage_bps, starting_cash=starting_cash
     )
