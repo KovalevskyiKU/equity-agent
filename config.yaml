@@ -17,6 +17,10 @@ regime_symbols:         # used as market-regime features, not traded (no API key
   - "^VIX"
   - "^TNX"              # 10-year Treasury yield
   - "DX-Y.NYB"          # US dollar index
+  - TLT                 # 20y+ Treasuries (long bonds)
+  - HYG                 # high-yield credit
+  - LQD                 # investment-grade credit
+  - GLD                 # gold
 
 timeframe: "1d"         # daily swing — avoids PDT rule, matches news/LLM cadence
 history_start: "2015-01-01"

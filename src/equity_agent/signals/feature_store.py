@@ -90,6 +90,24 @@ def build_market_context() -> pd.DataFrame:
         usd_df = pd.DataFrame({"usd_ret_20": usd["close"].pct_change(20)})
         ctx = usd_df if ctx.empty else ctx.join(usd_df, how="outer")
 
+    # Cross-asset / credit regime (yfinance ETFs, no key):
+    # credit risk appetite = high-yield minus investment-grade 20d return.
+    hyg, lqd = load_bars("HYG"), load_bars("LQD")
+    if not hyg.empty and not lqd.empty:
+        spread = hyg["close"].pct_change(20) - lqd["close"].pct_change(20)
+        cr_df = pd.DataFrame({"credit_ret_20": spread})
+        ctx = cr_df if ctx.empty else ctx.join(cr_df, how="outer")
+
+    tlt = load_bars("TLT")
+    if not tlt.empty:
+        tlt_df = pd.DataFrame({"tlt_ret_20": tlt["close"].pct_change(20)})
+        ctx = tlt_df if ctx.empty else ctx.join(tlt_df, how="outer")
+
+    gld = load_bars("GLD")
+    if not gld.empty:
+        gld_df = pd.DataFrame({"gld_ret_20": gld["close"].pct_change(20)})
+        ctx = gld_df if ctx.empty else ctx.join(gld_df, how="outer")
+
     return ctx
 
 

@@ -28,7 +28,8 @@ logger = logging.getLogger("equity_agent")
 # Calendar features are categorical — not meaningful under rank correlation.
 _NUMERIC_FEATURES = [c for c in FEATURE_COLUMNS if c not in ("dow", "month")]
 _CONTEXT_FEATURES = [
-    "mkt_ret_1", "vix_level", "vix_z", "tnx_level", "tnx_chg_20", "usd_ret_20"
+    "mkt_ret_1", "vix_level", "vix_z", "tnx_level", "tnx_chg_20", "usd_ret_20",
+    "credit_ret_20", "tlt_ret_20", "gld_ret_20",
 ]
 _MIN_OBS = 30
 

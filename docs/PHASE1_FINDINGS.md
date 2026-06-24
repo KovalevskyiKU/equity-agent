@@ -180,3 +180,10 @@ precede lower forward equity returns. Going wide on data found real edge here �
 unlike Kronos/momentum. Confirm with a rates-aware overlay backtest + proper
 time-series stats (effective N ≈ #dates, not #rows). LLM provider is now
 switchable (Groq now → local Ollama later via `LLM_PROVIDER`).
+
+Cross-asset / credit (yfinance ETFs, no key) added next: **credit_ret_20 (HYG−LQD
+20d) is significant (noov t −3.58)** — extended credit risk-on precedes lower
+forward returns; tlt_ret_20 borderline (1.97); gold/USD ~0. So a coherent regime
+cluster has emerged: **volatility (atr_14, vix) + rates (tnx) + credit
+(HYG−LQD)** — all economically sensible and non-overlap-robust. (Same caveat:
+macro features are shared across names, so even noov t is somewhat inflated.)
