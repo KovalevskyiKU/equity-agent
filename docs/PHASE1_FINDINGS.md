@@ -195,3 +195,26 @@ yield show NO short-horizon edge** (expected — they are months-to-years macro
 signals, not 10-day). So the validated regime cluster is now: volatility + rates
 + credit (both spread level and HY−IG momentum). Next: a walk-forward
 regime-overlay test — does the cluster actually improve the strategy's P&L?
+
+## Walk-forward payoff test (2026-06-24) — THE VERDICT
+
+Ridge model on the full feature/regime cluster, fit walk-forward (6 folds,
+embargo = 10d), OOS predictions → long-only weights → backtested over 619 OOS days:
+
+| metric       | WF-model | basket | SPY  |
+|--------------|----------|--------|------|
+| Sharpe       | 0.48     | 1.23   | 1.23 |
+| total return | 19%      | 51%    | 56%  |
+| max DD       | -22%     | -17%   | -19% |
+
+**OOS IC = 0.004 (t = 0.27) — essentially zero.** The combined model does NOT beat
+the diversified basket out-of-sample; it underperforms. The individual features
+had significant *in-sample* IC (0.05–0.11), but that was inflated (overlapping
+windows, cross-sectional macro duplication, multiple testing); the honest OOS
+combined IC is ~0 and the strategy is worse than holding the basket.
+
+**Conclusion of the research arc:** no signal tried — Kronos, momentum,
+volatility, rates, credit, or their walk-forward combination — produces tradable
+out-of-sample alpha over the diversified basket. The edge is diversification +
+discipline. Confirms the pivot: core = diversified basket; LLM only for the
+narrow news risk-off gate.

@@ -487,6 +487,37 @@ def dashboard(port: int = typer.Option(8501, help="port to serve on")) -> None:
 
 
 @app.command()
+def walkforward(
+    horizon: int = typer.Option(10, help="forward horizon in trading days"),
+    n_splits: int = typer.Option(6, help="walk-forward folds"),
+    alpha: float = typer.Option(0.1, help="ridge regularisation"),
+) -> None:
+    """Payoff test: does a walk-forward ridge model on the feature cluster beat the basket OOS?"""
+    from typing import cast
+
+    setup_logging()
+    init_db()
+    from .research.wf_strategy import run_walkforward_strategy
+
+    cfg = load_config()
+    res = run_walkforward_strategy(horizon=horizon, n_splits=n_splits, alpha=alpha)
+    if not res:
+        typer.echo("No data. Run `eqa ingest` and `eqa features` first.")
+        raise typer.Exit(1)
+
+    typer.echo(
+        f"\nOOS IC = {cast(float, res['oos_ic']):.4f} "
+        f"(t={cast(float, res['oos_t']):.2f}, n={res['n_oos']}), {res['n_dates']} OOS days"
+    )
+    strat = cast(dict, res["strategy"])
+    basket = cast(dict, res["basket"])
+    spy = cast(dict, res["spy"])
+    typer.echo(f"\n{'metric':<14}{'WF-model':>12}{'basket':>12}{cfg.benchmark:>12}")
+    for key in ("total_return", "cagr", "ann_vol", "sharpe", "sortino", "max_drawdown", "calmar"):
+        typer.echo(f"{key:<14}{strat[key]:>12.3f}{basket[key]:>12.3f}{spy[key]:>12.3f}")
+
+
+@app.command()
 def status() -> None:
     """Show how many bars are stored per symbol."""
     init_db()
