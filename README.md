@@ -97,6 +97,20 @@ Task Scheduler → Create Task → Daily ~22:35 (your TZ, after 16:00 ET close)
   Start in:  D:\Portative workhub\equity-agent
 ```
 
+### Live execution (IBKR, Phase 4)
+
+```cmd
+pip install -e ".[ibkr]"        :: ib_insync
+:: start TWS or IB Gateway (paper port 7497) with the API enabled
+eqa live-run                    :: DRY-RUN: print the orders it would place, send nothing
+eqa live-run --execute          :: actually transmit market orders to reach the core target
+```
+
+> Safety: `live-run` is a **dry run by default** and transmits nothing without
+> `--execute`. Order sizing (`plan_orders`) is pure and unit-tested; only the thin
+> TWS glue needs a running gateway. Connection settings are in `.env`
+> (`IBKR_HOST/PORT/CLIENT_ID`).
+
 Universe and other non-secret params live in [`config.yaml`](config.yaml);
 secrets (API keys, `DATABASE_URL`) live in `.env` (gitignored).
 

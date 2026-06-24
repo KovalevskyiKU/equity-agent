@@ -526,6 +526,62 @@ def walkforward(
         typer.echo(f"{key:<14}{strat[key]:>12.3f}{basket[key]:>12.3f}{spy[key]:>12.3f}")
 
 
+@app.command("live-run")
+def live_run_cmd(
+    execute: bool = typer.Option(
+        False, "--execute", help="TRANSMIT real orders to IBKR (default: dry-run, plan only)"
+    ),
+    min_notional: float = typer.Option(50.0, help="skip orders below this notional"),
+) -> None:
+    """Plan (and with --execute, transmit) IBKR orders to reach the core target.
+
+    Dry-run by default: it connects to TWS/Gateway, prints the orders it WOULD place,
+    and sends nothing. Needs the [ibkr] extra and a running TWS/IB Gateway.
+    """
+    setup_logging()
+    init_db()
+    from .backtest.panels import load_price_panels
+    from .config import get_settings
+    from .execution.ibkr_broker import IBKRBroker
+    from .execution.runner import compute_core_target
+
+    cfg = load_config()
+    s = get_settings()
+    _, close_b = load_price_panels([cfg.benchmark])
+    close_u = load_price_panels(cfg.universe)[1] if cfg.core_strategy != "spy" else None
+    if close_b.empty or (close_u is not None and close_u.empty):
+        typer.echo("No price data. Run `eqa ingest` first.")
+        raise typer.Exit(1)
+    import pandas as pd
+
+    u_panel = close_u if close_u is not None else pd.DataFrame()
+    target, prices = compute_core_target(cfg.core_strategy, u_panel, close_b, cfg.benchmark)
+
+    broker = IBKRBroker(s.ibkr_host, s.ibkr_port, s.ibkr_client_id)
+    try:
+        broker.connect()
+    except Exception as e:  # noqa: BLE001 - surface any connection problem clearly
+        typer.echo(
+            f"Could not connect to IBKR at {s.ibkr_host}:{s.ibkr_port} "
+            f"- is TWS / IB Gateway running and the API enabled? ({e})"
+        )
+        raise typer.Exit(1) from e
+    try:
+        orders = broker.rebalance(target, prices, execute=execute, min_notional=min_notional)
+    finally:
+        broker.disconnect()
+
+    mode = "TRANSMITTED" if execute else "DRY-RUN (nothing sent)"
+    typer.echo(f"\n=== IBKR {mode} - core={cfg.core_strategy} ===")
+    for o in orders:
+        typer.echo(
+            f"  {o.side:<4} {o.symbol:<6} qty={o.qty:g}  "
+            f"~${o.est_notional:,.0f} @ {o.est_price:.2f}"
+        )
+    if not orders:
+        typer.echo("  (no orders - already at target)")
+
+
 @app.command("factor-ic")
 def factor_ic_cmd(
     horizon: int = typer.Option(21, help="forward horizon in trading days (~1 month)"),
