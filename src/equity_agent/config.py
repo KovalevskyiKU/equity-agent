@@ -36,9 +36,12 @@ class Settings(BaseSettings):
 
     database_url: str = "sqlite:///data/equity_agent.db"
 
-    # LLM (Phase 2) — provider switch: "groq" (free cloud, now) or "ollama" (local, later).
+    # LLM (Phase 2) — comma-separated priority list with failover, e.g. "groq,deepseek".
     llm_provider: str = "groq"
     groq_api_key: str | None = None
+    deepseek_api_key: str | None = None
+    deepseek_base_url: str = "https://api.deepseek.com"
+    deepseek_model: str = "deepseek-chat"
     google_api_key: str | None = None  # Gemini, kept as a fallback
     anthropic_api_key: str | None = None
     ollama_base_url: str = "http://localhost:11434"

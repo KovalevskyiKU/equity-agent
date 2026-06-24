@@ -1,20 +1,25 @@
-"""Single entry point for LLM calls — provider-switchable (Groq now, Ollama later).
+"""Single entry point for LLM calls — multi-provider with failover.
 
-`LLM_PROVIDER` selects the backend: "groq" (free cloud, used now) or "ollama"
-(local, for when there's GPU hardware). Switching is a one-line env change; no
-caller changes. Structured output = JSON mode + pydantic validation.
+`LLM_PROVIDER` is a comma-separated priority list, e.g. "groq,deepseek". Each call
+tries providers in order and falls through to the next on any error (e.g. a rate
+limit), so several free tiers stack into more total throughput. Providers:
+"groq" (free cloud), "deepseek" (5M free tokens for new accounts), "ollama"
+(local, for when there's GPU hardware). Structured output = JSON mode + pydantic.
 """
 
 from __future__ import annotations
 
 import json
+import logging
 import typing
 
 from pydantic import BaseModel
 
-from .config import get_settings
+from .config import Settings, get_settings
 
-DEFAULT_MODEL = "llama-3.3-70b-versatile"  # Groq default; Ollama uses settings.ollama_model
+logger = logging.getLogger("equity_agent")
+
+DEFAULT_MODEL = "llama-3.3-70b-versatile"  # Groq default
 
 
 def _annotation_shape(ann: object) -> object:
@@ -41,7 +46,6 @@ def _groq_structured[T: BaseModel](
 ) -> T:
     from groq import Groq
 
-    # max_retries lets the SDK honour Retry-After on 429/503 — do NOT add a manual loop.
     client = Groq(api_key=get_settings().groq_api_key, max_retries=8)
     resp = client.chat.completions.create(
         model=model,
@@ -51,28 +55,31 @@ def _groq_structured[T: BaseModel](
     )
     content = resp.choices[0].message.content
     if content is None:
-        raise RuntimeError("LLM returned empty content")
+        raise RuntimeError("Groq returned empty content")
     return schema.model_validate_json(content)
 
 
-def _ollama_structured[T: BaseModel](
-    prompt: str, schema: type[T], model: str, temperature: float, base_url: str
+def _openai_compatible_structured[T: BaseModel](
+    prompt: str, schema: type[T], *, base_url: str, api_key: str, model: str, temperature: float
 ) -> T:
+    """DeepSeek / Ollama / any OpenAI-compatible /chat/completions endpoint."""
     import requests
 
+    headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
     resp = requests.post(
-        f"{base_url}/api/chat",
+        f"{base_url}/chat/completions",
+        headers=headers,
         json={
             "model": model,
             "messages": [{"role": "user", "content": prompt}],
-            "format": "json",
+            "response_format": {"type": "json_object"},
+            "temperature": temperature,
             "stream": False,
-            "options": {"temperature": temperature},
         },
         timeout=180,
     )
     resp.raise_for_status()
-    content = resp.json()["message"]["content"]
+    content = resp.json()["choices"][0]["message"]["content"]
     return schema.model_validate_json(content)
 
 
@@ -83,16 +90,45 @@ def generate_structured[T: BaseModel](
     model: str | None = None,
     temperature: float = 0.0,
 ) -> T:
-    """Call the active LLM provider and return a validated instance of ``schema``."""
+    """Call the configured LLM providers (in priority order, with failover)."""
     settings = get_settings()
     hint = json.dumps(_compact_shape(schema))
     full_prompt = f"{prompt}\n\nReturn ONLY a JSON object with exactly this shape:\n{hint}"
 
-    provider = settings.llm_provider.lower()
+    providers = [p.strip().lower() for p in settings.llm_provider.split(",") if p.strip()]
+    if not providers:
+        raise ValueError("LLM_PROVIDER is empty")
+
+    last_err: Exception | None = None
+    for provider in providers:
+        try:
+            return _call_provider(provider, full_prompt, schema, model, temperature, settings)
+        except Exception as e:  # noqa: BLE001 - fall through to the next provider on any error
+            last_err = e
+            logger.warning("LLM provider %s failed: %s", provider, str(e)[:140])
+    assert last_err is not None
+    raise last_err
+
+
+def _call_provider[T: BaseModel](
+    provider: str,
+    prompt: str,
+    schema: type[T],
+    model: str | None,
+    temperature: float,
+    settings: Settings,
+) -> T:
     if provider == "groq":
-        return _groq_structured(full_prompt, schema, model or DEFAULT_MODEL, temperature)
-    if provider == "ollama":
-        return _ollama_structured(
-            full_prompt, schema, settings.ollama_model, temperature, settings.ollama_base_url
+        return _groq_structured(prompt, schema, model or DEFAULT_MODEL, temperature)
+    if provider == "deepseek":
+        return _openai_compatible_structured(
+            prompt, schema, base_url=settings.deepseek_base_url,
+            api_key=settings.deepseek_api_key or "", model=settings.deepseek_model,
+            temperature=temperature,
         )
-    raise ValueError(f"Unknown LLM_PROVIDER {settings.llm_provider!r} (use 'groq' or 'ollama')")
+    if provider == "ollama":
+        return _openai_compatible_structured(
+            prompt, schema, base_url=f"{settings.ollama_base_url}/v1",
+            api_key="", model=settings.ollama_model, temperature=temperature,
+        )
+    raise ValueError(f"Unknown LLM provider {provider!r} (use groq / deepseek / ollama)")

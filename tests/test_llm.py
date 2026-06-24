@@ -20,7 +20,7 @@ def test_unknown_provider_raises(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("LLM_PROVIDER", "bogus")
     config.get_settings.cache_clear()
     try:
-        with pytest.raises(ValueError, match="Unknown LLM_PROVIDER"):
+        with pytest.raises(ValueError, match="Unknown LLM provider"):
             generate_structured("hi", _Shape)
     finally:
         config.get_settings.cache_clear()
