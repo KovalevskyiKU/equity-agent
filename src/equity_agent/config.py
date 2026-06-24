@@ -42,7 +42,11 @@ class Settings(BaseSettings):
     deepseek_api_key: str | None = None
     deepseek_base_url: str = "https://api.deepseek.com"
     deepseek_model: str = "deepseek-chat"
-    google_api_key: str | None = None  # Gemini, kept as a fallback
+    google_api_key: str | None = None  # Gemini (OpenAI-compatible endpoint)
+    gemini_model: str = "gemini-2.5-flash"
+    cerebras_api_key: str | None = None
+    cerebras_base_url: str = "https://api.cerebras.ai/v1"
+    cerebras_model: str = "llama-3.3-70b"
     anthropic_api_key: str | None = None
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "llama3.1:8b"

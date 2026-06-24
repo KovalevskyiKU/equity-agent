@@ -126,9 +126,24 @@ def _call_provider[T: BaseModel](
             api_key=settings.deepseek_api_key or "", model=settings.deepseek_model,
             temperature=temperature,
         )
+    if provider == "gemini":
+        return _openai_compatible_structured(
+            prompt, schema,
+            base_url="https://generativelanguage.googleapis.com/v1beta/openai",
+            api_key=settings.google_api_key or "", model=settings.gemini_model,
+            temperature=temperature,
+        )
+    if provider == "cerebras":
+        return _openai_compatible_structured(
+            prompt, schema, base_url=settings.cerebras_base_url,
+            api_key=settings.cerebras_api_key or "", model=settings.cerebras_model,
+            temperature=temperature,
+        )
     if provider == "ollama":
         return _openai_compatible_structured(
             prompt, schema, base_url=f"{settings.ollama_base_url}/v1",
             api_key="", model=settings.ollama_model, temperature=temperature,
         )
-    raise ValueError(f"Unknown LLM provider {provider!r} (use groq / deepseek / ollama)")
+    raise ValueError(
+        f"Unknown LLM provider {provider!r} (use groq / deepseek / gemini / cerebras / ollama)"
+    )
