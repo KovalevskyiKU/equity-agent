@@ -66,9 +66,19 @@ eqa paper-reset --cash 100000   :: start a paper account
 eqa paper-run --risk-off        :: rebalance to the core (default: hold SPY) + LLM news gate
 eqa paper-status                :: cash / equity / positions
 eqa monitor                     :: equity, P&L, drawdown, Sharpe, tracking vs SPY
-pip install -e ".[ui]"
-eqa dashboard                   :: Streamlit dashboard at http://localhost:8501
 ```
+
+### Open the dashboard
+
+```cmd
+pip install -e ".[ui]"
+python app.py                   :: <- run this (or click Run on app.py in PyCharm)
+```
+
+Opens at http://localhost:8501 with four tabs: **Paper portfolio** (equity, P&L,
+drawdown, tracking vs SPY), **Predictions** (top names each factor favors now),
+**Backtest (% profit)** (factor portfolios vs SPY), **Signals & news**. Equivalent:
+`eqa dashboard` or `streamlit run dashboard_app.py`.
 
 Backtesting: `eqa backtest --strategy vol-target`, `eqa backtest-sweep` (rolling,
 no LLM), `eqa backtest-llm` (LLM agent), `eqa backtest-kronos` (Kronos rule).

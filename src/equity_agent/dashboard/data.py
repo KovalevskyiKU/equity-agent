@@ -70,6 +70,69 @@ def strategy_curves() -> tuple[pd.DataFrame, pd.DataFrame]:
     return curves, pd.DataFrame(rows)
 
 
+def factor_leaderboard(top_n: int = 15) -> dict[str, pd.DataFrame]:
+    """Current top-N names by each factor — what each factor *favors today*.
+
+    Informational only: backtests show these factors don't beat SPY net of costs
+    once survivorship is removed (see docs/PHASE1_FINDINGS.md). This is "the picks",
+    not a buy list. No network / no point-in-time mask (uses today's universe).
+    """
+    from ..research.factor_eval import momentum_factor
+    from ..research.fundamental_factors import build_fundamental_panels
+
+    cfg = load_config()
+    _, close = load_price_panels(cfg.universe)
+    if close.empty:
+        return {}
+
+    def lead(series: pd.Series, label: str, lo: float | None, hi: float | None) -> pd.DataFrame:
+        # Drop implausible values (corporate-action / extraction artifacts: a 3000%
+        # momentum from a spinoff, a 50%+ earnings yield, a 150%+ ROE on tiny equity).
+        s = series.dropna()
+        if lo is not None:
+            s = s[s > lo]
+        if hi is not None:
+            s = s[s < hi]
+        s = s.nlargest(top_n)
+        return pd.DataFrame({"symbol": list(s.index), label: s.to_numpy().round(4)})
+
+    funds = build_fundamental_panels(list(close.columns), close)
+    return {
+        "Momentum (12-1)": lead(momentum_factor(close).iloc[-1], "momentum", None, 3.0),
+        "Value (earnings yield)": lead(funds["earnings_yield"].iloc[-1], "earn_yield", 0.0, 0.5),
+        "Quality (ROE)": lead(funds["roe"].iloc[-1], "roe", 0.0, 1.5),
+    }
+
+
+def factor_performance() -> pd.DataFrame:
+    """Backtested returns of monthly top-quintile factor portfolios vs SPY.
+
+    Over today's universe -> survivorship-biased (inflated); SPY (cap-weight) is the
+    honest bar. The corrected, point-in-time read is `eqa factor-backtest-pit`.
+    """
+    from typing import cast
+
+    from ..backtest.factor_portfolio import run_factor_portfolios
+
+    cfg = load_config()
+    res = run_factor_portfolios(cfg.universe, cfg.benchmark)
+    if not res:
+        return pd.DataFrame()
+
+    def row(name: str, m: dict) -> dict[str, object]:
+        return {
+            "strategy": name,
+            "total_x": round(m["total_return"], 2),
+            "cagr_%": round(m["cagr"] * 100, 1),
+            "sharpe": round(m["sharpe"], 2),
+            "max_dd_%": round(m["max_drawdown"] * 100, 1),
+        }
+
+    rows = [row(name, fb.portfolio) for name, fb in cast(dict, res["factors"]).items()]
+    rows.append(row(cfg.benchmark, cast(dict, res["spy"])))
+    return pd.DataFrame(rows)
+
+
 def recent_news(limit: int = 50) -> pd.DataFrame:
     with session_scope() as s:
         rows = [
