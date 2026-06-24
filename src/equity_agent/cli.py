@@ -595,10 +595,35 @@ def factor_backtest_cmd(
         )
 
 
+@app.command("ingest-fundamentals")
+def ingest_fundamentals_cmd(
+    union: bool = typer.Option(
+        True, help="include point-in-time dropped names (else current only)"
+    ),
+) -> None:
+    """Fetch point-in-time annual fundamentals (Finnhub as-reported) for the universe."""
+    log = setup_logging()
+    init_db()
+    from .data.fundamentals import ingest_fundamentals
+    from .data.sp500_history import ever_members, fetch_sp500_changes
+
+    cfg = load_config()
+    if union:
+        changes = fetch_sp500_changes()
+        symbols = ever_members(cfg.universe, changes, f"{cfg.history_start[:4]}-01-01")
+    else:
+        symbols = list(cfg.universe)
+    log.info("Fetching fundamentals for %d symbols", len(symbols))
+    res = ingest_fundamentals(symbols)
+    got = sum(1 for v in res.values() if v > 0)
+    log.info("Fundamentals: %d/%d symbols with data", got, len(symbols))
+
+
 @app.command("factor-backtest-pit")
 def factor_backtest_pit_cmd(
     q: float = typer.Option(0.2, help="top-quantile fraction (0.2 = top quintile)"),
     min_names: int = typer.Option(30, help="min rankable members required per rebalance"),
+    fundamentals: bool = typer.Option(False, help="include value/quality fundamental factors"),
     fee_bps: float = typer.Option(1.0, help="per-side commission, bps"),
     slippage_bps: float = typer.Option(5.0, help="slippage vs open, bps"),
 ) -> None:
@@ -619,6 +644,7 @@ def factor_backtest_pit_cmd(
     res = run_pit_factor_portfolios(
         union, cfg.universe, changes, cfg.benchmark,
         q=q, min_names=min_names, fee_bps=fee_bps, slippage_bps=slippage_bps,
+        with_fundamentals=fundamentals,
     )
     if not res:
         typer.echo("No price data. Run `eqa ingest` first.")

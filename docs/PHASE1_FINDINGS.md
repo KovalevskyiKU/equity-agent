@@ -343,3 +343,57 @@ they will look-ahead and fake alpha exactly as momentum did under survivorship b
 Residual caveat: 113 dead names are unrecoverable on free data, so even the PIT
 numbers are a mild upper bound on the downside (a little *more* of the basket/momentum
 return is still survivorship).
+
+## Phase 2c — value & quality factors, point-in-time (2026-06-24)
+
+Built a point-in-time fundamentals connector (`data/fundamentals.py`): Finnhub
+``financials-reported`` **annual** as-filed figures, indexed by **filing date** (the
+10-K isn't public until filed → no look-ahead). Chosen after two dead ends: FMP's
+free tier caps history to 5 quarters, and Finnhub's *quarterly* feed reports
+year-to-date figures (a naive TTM triple-counts). Value uses EPS/price (the
+shares-outstanding tag is missing for many filers; diluted EPS is reliable).
+Covered 712/738 union names. Factors (higher = better): **earnings_yield** (value),
+**roe / net_margin / gross_margin** (quality). Tested with the same point-in-time
+membership mask + SPY bar (`eqa ingest-fundamentals`, `eqa factor-backtest-pit
+--fundamentals`).
+
+**Point-in-time top-quintile, net of costs** (member basket Sharpe 0.58 / 1.78x; SPY 0.72 / 2.59x)
+
+| factor (PIT)   | Sharpe | total | CAGR  | x-sec IC (monthly) | long-short Sharpe |
+|----------------|-------:|------:|------:|-------------------:|------------------:|
+| earnings_yield | 0.58   | 2.23x | 10.8% | +0.021 (t 2.24)    | 0.12              |
+| roe            | 0.66   | 2.23x | 10.8% | +0.016 (t 1.73)    | 0.15              |
+| net_margin     | 0.58   | 1.80x | 9.4%  | +0.005 (t 0.54)    | −0.11             |
+| gross_margin   | **0.75** | **3.62x** | **14.3%** | +0.028 (t 2.16) | **0.41**      |
+
+There is a **faint but real cross-sectional signal** in value (earnings_yield, IC
+t 2.24) and quality (gross_margin t 2.16, roe t 1.73) — the first non-zero ICs in the
+project. But **only gross_margin nominally beats SPY**, and it does not survive
+scrutiny:
+- **Coverage/sector tilt:** only ~152 names report a gross-profit line (banks,
+  energy, insurers, REITs don't), so its top quintile is ~30 names that are **70%
+  Information Technology + Health Care** — a concentrated tech/pharma bet, not a
+  clean cross-sectional factor.
+- **Regime-dependent, decaying:** it beats SPY in 2015-2021 but **lags SPY in 2024,
+  2025 and 2026-YTD** (−4.2% vs +7.6%) and had a deeper 2022 drawdown (−26% vs −20%).
+  The full-period 0.03 Sharpe edge is front-loaded and fading.
+
+The genuinely-positive ICs of **earnings_yield and roe do not monetize long-only**:
+their portfolios match the basket and lose to SPY (the cap-weight-vs-equal-weight gap
+plus higher vol eats the thin signal). Value's flat decade here matches its
+well-documented 2015-2020 drought.
+
+**VERDICT (value/quality, point-in-time): no fundamental factor robustly beats SPY.**
+The one that nominally does (gross_margin) is a tech/health sector concentration that
+has decayed since 2023. Combined with Phase 2/2b, the **whole cross-sectional search is
+now complete and the answer is consistent: momentum, low-vol, value and quality
+produce at most a faint cross-sectional IC and none delivers tradable alpha over the
+cap-weighted index once survivorship is removed.** The edge remains **cap-weighted
+market exposure + diversification + discipline**; SPY is the bar and simple factors
+don't clear it on this universe/period.
+
+If pursued further (low expected payoff): **sector-neutralize** the factors (to strip
+the gross_margin sector tilt) and test a **combined value+quality composite** — the
+two factors with real ICs — rather than single-factor long-only sleeves. Otherwise the
+legitimate factor avenues are exhausted; effort is better spent on execution/risk of
+the cap-weight-tracking core than on hunting price/fundamental alpha here.

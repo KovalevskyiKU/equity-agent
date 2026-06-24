@@ -227,6 +227,7 @@ def run_pit_factor_portfolios(
     min_names: int = 30,
     fee_bps: float = 1.0,
     slippage_bps: float = 5.0,
+    with_fundamentals: bool = False,
 ) -> dict[str, object]:
     """Point-in-time factor backtest: rank only names that were index members that day.
 
@@ -252,9 +253,17 @@ def run_pit_factor_portfolios(
         open_px, close_px, membership_basket_weights(tradable, rebal, min_names), cfg
     )
 
+    factor_panels: dict[str, pd.DataFrame] = {
+        name: fn(close_px) for name, fn in PRICE_FACTORS.items()
+    }
+    if with_fundamentals:
+        from ..research.fundamental_factors import build_fundamental_panels
+
+        factor_panels.update(build_fundamental_panels(list(close_px.columns), close_px))
+
     results: dict[str, dict[str, object]] = {}
-    for name, fn in PRICE_FACTORS.items():
-        factor = fn(close_px).where(mask)
+    for name, factor in factor_panels.items():
+        factor = factor.where(mask)
         port = run_backtest(
             open_px, close_px, quantile_long_weights(factor, rebal, q=q, min_names=min_names), cfg
         )
