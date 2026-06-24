@@ -63,7 +63,7 @@ Paper trading and the dashboard:
 
 ```cmd
 eqa paper-reset --cash 100000   :: start a paper account
-eqa paper-run --risk-off        :: rebalance to the core (vol-target) + LLM news gate
+eqa paper-run --risk-off        :: rebalance to the core (default: hold SPY) + LLM news gate
 eqa paper-status                :: cash / equity / positions
 pip install -e ".[ui]"
 eqa dashboard                   :: Streamlit dashboard at http://localhost:8501
@@ -71,6 +71,19 @@ eqa dashboard                   :: Streamlit dashboard at http://localhost:8501
 
 Backtesting: `eqa backtest --strategy vol-target`, `eqa backtest-sweep` (rolling,
 no LLM), `eqa backtest-llm` (LLM agent), `eqa backtest-kronos` (Kronos rule).
+
+Cross-sectional factors (point-in-time, the honest read):
+
+```cmd
+eqa ingest-fundamentals          :: point-in-time annual fundamentals (Finnhub)
+eqa factor-ic                    :: per-date cross-sectional IC of price factors
+eqa factor-backtest              :: monthly top-quintile factor portfolios (biased)
+eqa factor-backtest-pit --fundamentals  :: survivorship-corrected, value/quality incl.
+```
+
+> See [`docs/METHODOLOGY.md`](docs/METHODOLOGY.md): SPY (cap-weight) is the bar,
+> membership and fundamentals are point-in-time. `factor-backtest`/`backtest-sweep`
+> use today's universe and are survivorship-biased (they print a NOTE).
 
 ### Run it daily (orchestration)
 
@@ -90,16 +103,24 @@ secrets (API keys, `DATABASE_URL`) live in `.env` (gitignored).
 ## Status
 
 - **Phase 0 — foundation** ✅: repo, config, storage, daily-bar ingestion, tests, CI.
-- **Phase 1 — signals** (in progress): causal feature store ✅, IC/quantile research
-  harness with non-overlapping correction ✅, Kronos probabilistic signal + eval ✅,
-  validation harness (non-overlapping IC, block stability, purged walk-forward) ✅,
-  performance metrics ✅. LLM sentiment — pending API key.
-- **Phases 2–4** (decision/risk/execution): stubbed packages with documented interfaces.
+- **Phase 1 — signals** ✅: causal feature store, IC/quantile research harness with
+  non-overlapping correction, Kronos probabilistic signal + eval, validation harness
+  (non-overlapping IC, block stability, purged walk-forward), performance metrics.
+- **Phase 2 — cross-sectional factors** ✅: S&P 500 universe, per-date cross-sectional
+  IC, price (momentum/low-vol) + value/quality factors, **point-in-time index
+  membership + fundamentals** (survivorship/look-ahead correct).
+- **Phases 3–4** (risk/execution): paper-trading loop + risk-off gate live; IBKR pending.
 
-Early finding (10y, AAPL/NVDA/JPM): the only technical feature with edge that
-survives the non-overlapping correction is realized volatility (`atr_14`, ~t=2.8
-at the 10-day horizon); momentum features are noise on the full sample. See the
-roadmap discussion / project memory for the full plan.
+### Research verdict (the honest result)
+
+Across momentum, low-vol, value, quality and a sector-neutral composite, **no factor
+beats the cap-weighted index (SPY) with statistical confidence once survivorship is
+removed.** Survivorship bias was the dominant driver of the apparent edge: it inflated
+the point-in-time equal-weight basket from 1.78x to 3.59x. The edge is **cap-weight
+market exposure + diversification + discipline** — so the core defaults to tracking
+SPY (`config.core_strategy`). Full write-up in
+[`docs/PHASE1_FINDINGS.md`](docs/PHASE1_FINDINGS.md); rules in
+[`docs/METHODOLOGY.md`](docs/METHODOLOGY.md).
 
 ## Dev
 

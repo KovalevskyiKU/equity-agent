@@ -211,6 +211,11 @@ def backtest(
     basket_m = return_summary(basket.returns)
     bench_m = return_summary(bench.returns)
     typer.echo(f"\n=== {strategy} vs basket vs {cfg.benchmark} (full history) ===")
+    typer.echo(
+        "NOTE: 'basket'/'strategy' use TODAY'S universe over all history -> "
+        f"survivorship-biased (inflated). {cfg.benchmark} (cap-weight) is the honest "
+        "bar; for the corrected read use `factor-backtest-pit` (see docs/METHODOLOGY.md)."
+    )
     typer.echo(f"{'metric':<14}{strategy:>14}{'basket':>14}{cfg.benchmark:>14}")
     for key in ("total_return", "cagr", "ann_vol", "sharpe", "sortino", "max_drawdown", "calmar"):
         typer.echo(f"{key:<14}{strat_m[key]:>14.3f}{basket_m[key]:>14.3f}{bench_m[key]:>14.3f}")
@@ -344,6 +349,10 @@ def backtest_sweep_cmd(
     )
     n_windows = per["window_end"].nunique()
     typer.echo(f"\n=== Rolling {window_months}mo windows, step {step_months}mo, n={n_windows} ===")
+    typer.echo(
+        "NOTE: uses TODAY'S universe over all history -> survivorship-biased. The "
+        "honest, point-in-time read is `factor-backtest-pit` (see docs/METHODOLOGY.md)."
+    )
     typer.echo(agg.to_string(index=False))
 
     # Head-to-head: vol-target vs basket across windows.
