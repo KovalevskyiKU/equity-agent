@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 import yaml
 from pydantic import BaseModel, Field
@@ -72,6 +73,13 @@ class ProjectConfig(BaseModel):
 
     universe: list[str] = Field(min_length=1)
     benchmark: str = "SPY"
+    # What the live/paper core actually trades. Research showed (docs/PHASE1_FINDINGS,
+    # Phase 2b) that once survivorship is removed, equal-weight does NOT beat the
+    # cap-weighted index and no price/fundamental factor does either — so the honest
+    # default core is to track the cap-weight benchmark itself (hold SPY). The
+    # equal_weight / vol_target cores run over `universe` (which is now the broad
+    # factor-research universe, not a hand-picked basket).
+    core_strategy: Literal["spy", "equal_weight", "vol_target"] = "spy"
     regime_symbols: list[str] = Field(default_factory=list)
     timeframe: str = "1d"
     history_start: str = "2015-01-01"

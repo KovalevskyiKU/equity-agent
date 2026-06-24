@@ -512,7 +512,13 @@ universe:
   - "ZBRA"
   - "ZTS"
 
-benchmark: SPY          # buy-and-hold benchmark; strategy must beat it risk-adjusted
+benchmark: SPY          # cap-weight benchmark = the honest bar (point-in-time research)
+
+# What the paper/live core actually trades (separate from the factor-research universe).
+# spy = hold the cap-weight benchmark (honest default: research found nothing beats it
+# risk-adjusted once survivorship is removed). equal_weight / vol_target run over `universe`.
+core_strategy: spy
+
 regime_symbols:         # used as market-regime features, not traded (no API key — yfinance)
   - SPY
   - "^VIX"
