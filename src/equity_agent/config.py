@@ -36,10 +36,13 @@ class Settings(BaseSettings):
 
     database_url: str = "sqlite:///data/equity_agent.db"
 
-    # LLM (Phase 2) — Groq is the active provider (free tier, high daily quota).
+    # LLM (Phase 2) — provider switch: "groq" (free cloud, now) or "ollama" (local, later).
+    llm_provider: str = "groq"
     groq_api_key: str | None = None
     google_api_key: str | None = None  # Gemini, kept as a fallback
     anthropic_api_key: str | None = None
+    ollama_base_url: str = "http://localhost:11434"
+    ollama_model: str = "llama3.1:8b"
 
     # Execution broker (Phase 4) — IBKR (TWS/Gateway). Alpaca dropped (not in Ukraine).
     ibkr_host: str = "127.0.0.1"

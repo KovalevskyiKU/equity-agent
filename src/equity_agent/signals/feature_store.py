@@ -78,6 +78,18 @@ def build_market_context() -> pd.DataFrame:
             )
             ctx = vix_df if ctx.empty else ctx.join(vix_df, how="outer")
 
+    # Macro regime (yfinance proxies, no API key): 10y yield level + 20d change, USD 20d return.
+    tnx = load_bars("^TNX")
+    if not tnx.empty:
+        y = tnx["close"]
+        tnx_df = pd.DataFrame({"tnx_level": y, "tnx_chg_20": y - y.shift(20)})
+        ctx = tnx_df if ctx.empty else ctx.join(tnx_df, how="outer")
+
+    usd = load_bars("DX-Y.NYB")
+    if not usd.empty:
+        usd_df = pd.DataFrame({"usd_ret_20": usd["close"].pct_change(20)})
+        ctx = usd_df if ctx.empty else ctx.join(usd_df, how="outer")
+
     return ctx
 
 

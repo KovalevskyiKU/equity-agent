@@ -12,9 +12,11 @@ universe:        # diversified across sectors (tech, financials, health, energy,
   - HD
 
 benchmark: SPY          # buy-and-hold benchmark; strategy must beat it risk-adjusted
-regime_symbols:         # used as market-regime features, not traded
+regime_symbols:         # used as market-regime features, not traded (no API key — yfinance)
   - SPY
   - "^VIX"
+  - "^TNX"              # 10-year Treasury yield
+  - "DX-Y.NYB"          # US dollar index
 
 timeframe: "1d"         # daily swing — avoids PDT rule, matches news/LLM cadence
 history_start: "2015-01-01"

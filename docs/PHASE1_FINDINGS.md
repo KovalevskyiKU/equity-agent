@@ -160,3 +160,23 @@ vol-target ≈ equal-weight basket full-history (Sharpe 1.13 vs 1.11); both beat
 Honest core: **diversification is the edge**; vol-target is the principled
 allocator; risk overlays add little to nothing over this period. The job now is
 disciplined execution (paper loop) + monitoring + a narrow LLM news risk-off gate.
+
+## Macro regime features — rates/USD via yfinance, no key (2026-06-24)
+
+Added 10y yield (^TNX) and USD index (DX-Y.NYB) as regime context. IC vs 10d
+forward return (pooled 8 names; non-overlap t is the honest column, though macro
+is shared across names so even it is somewhat inflated by cross-sectional dup):
+
+| feature     | IC     | non-overlap t |
+|-------------|--------|---------------|
+| atr_14      | 0.094  | 4.8           |
+| vix_level   | 0.061  | 3.0           |
+| tnx_level   | -0.053 | -2.6          |
+| tnx_chg_20  | -0.043 | -2.2          |
+| usd_ret_20  | ~0     | 1.4           |
+
+**New, economically-sensible signal: interest rates.** Higher / rising 10y yields
+precede lower forward equity returns. Going wide on data found real edge here —
+unlike Kronos/momentum. Confirm with a rates-aware overlay backtest + proper
+time-series stats (effective N ≈ #dates, not #rows). LLM provider is now
+switchable (Groq now → local Ollama later via `LLM_PROVIDER`).

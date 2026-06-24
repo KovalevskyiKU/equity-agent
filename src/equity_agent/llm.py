@@ -1,10 +1,8 @@
-"""Single entry point for LLM calls — Groq today, swappable.
+"""Single entry point for LLM calls — provider-switchable (Groq now, Ollama later).
 
-Every LLM call goes through this function, so switching provider touches this
-file only. Groq free tier is rate-limited (~30 req/min, ~6k tokens/min, ~1k/day);
-we let the SDK honour Retry-After via max_retries so transient 429/503 pace
-themselves instead of failing. Structured output = JSON mode + pydantic
-validation.
+`LLM_PROVIDER` selects the backend: "groq" (free cloud, used now) or "ollama"
+(local, for when there's GPU hardware). Switching is a one-line env change; no
+caller changes. Structured output = JSON mode + pydantic validation.
 """
 
 from __future__ import annotations
@@ -15,6 +13,8 @@ import typing
 from pydantic import BaseModel
 
 from .config import get_settings
+
+DEFAULT_MODEL = "llama-3.3-70b-versatile"  # Groq default; Ollama uses settings.ollama_model
 
 
 def _annotation_shape(ann: object) -> object:
@@ -32,36 +32,20 @@ def _annotation_shape(ann: object) -> object:
 
 
 def _compact_shape(model: type[BaseModel]) -> dict[str, object]:
-    """A tiny JSON shape (field -> type) — far cheaper in tokens than the full
-    JSON Schema, which matters under Groq's ~100k tokens/day free limit."""
+    """A tiny JSON shape (field -> type) — far cheaper in tokens than the full schema."""
     return {name: _annotation_shape(f.annotation) for name, f in model.model_fields.items()}
 
 
-# 70b-versatile: best free-tier quality. Free TPD is ~100k tokens/day (≈3 backtest
-# windows/day), so spend it deliberately — the retry fix above prevents the storms
-# that exhausted it. 8b-instant has far more daily tokens but decided badly
-# (negative Sharpe in a bull); use it only for bulk/low-stakes calls via --model.
-DEFAULT_MODEL = "llama-3.3-70b-versatile"
-
-
-def generate_structured[T: BaseModel](
-    prompt: str,
-    schema: type[T],
-    *,
-    model: str = DEFAULT_MODEL,
-    temperature: float = 0.0,
+def _groq_structured[T: BaseModel](
+    prompt: str, schema: type[T], model: str, temperature: float
 ) -> T:
-    """Call the LLM and return a validated instance of ``schema`` (a pydantic model)."""
     from groq import Groq
 
-    # max_retries lets the SDK wait out 429/503 (honouring Retry-After) — do NOT add a
-    # manual retry loop on top, it just multiplies requests and burns the daily quota.
+    # max_retries lets the SDK honour Retry-After on 429/503 — do NOT add a manual loop.
     client = Groq(api_key=get_settings().groq_api_key, max_retries=8)
-    hint = json.dumps(_compact_shape(schema))
-    full_prompt = f"{prompt}\n\nReturn ONLY a JSON object with exactly this shape:\n{hint}"
     resp = client.chat.completions.create(
         model=model,
-        messages=[{"role": "user", "content": full_prompt}],
+        messages=[{"role": "user", "content": prompt}],
         response_format={"type": "json_object"},
         temperature=temperature,
     )
@@ -69,3 +53,46 @@ def generate_structured[T: BaseModel](
     if content is None:
         raise RuntimeError("LLM returned empty content")
     return schema.model_validate_json(content)
+
+
+def _ollama_structured[T: BaseModel](
+    prompt: str, schema: type[T], model: str, temperature: float, base_url: str
+) -> T:
+    import requests
+
+    resp = requests.post(
+        f"{base_url}/api/chat",
+        json={
+            "model": model,
+            "messages": [{"role": "user", "content": prompt}],
+            "format": "json",
+            "stream": False,
+            "options": {"temperature": temperature},
+        },
+        timeout=180,
+    )
+    resp.raise_for_status()
+    content = resp.json()["message"]["content"]
+    return schema.model_validate_json(content)
+
+
+def generate_structured[T: BaseModel](
+    prompt: str,
+    schema: type[T],
+    *,
+    model: str | None = None,
+    temperature: float = 0.0,
+) -> T:
+    """Call the active LLM provider and return a validated instance of ``schema``."""
+    settings = get_settings()
+    hint = json.dumps(_compact_shape(schema))
+    full_prompt = f"{prompt}\n\nReturn ONLY a JSON object with exactly this shape:\n{hint}"
+
+    provider = settings.llm_provider.lower()
+    if provider == "groq":
+        return _groq_structured(full_prompt, schema, model or DEFAULT_MODEL, temperature)
+    if provider == "ollama":
+        return _ollama_structured(
+            full_prompt, schema, settings.ollama_model, temperature, settings.ollama_base_url
+        )
+    raise ValueError(f"Unknown LLM_PROVIDER {settings.llm_provider!r} (use 'groq' or 'ollama')")
