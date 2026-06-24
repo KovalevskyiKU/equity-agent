@@ -517,6 +517,140 @@ def walkforward(
         typer.echo(f"{key:<14}{strat[key]:>12.3f}{basket[key]:>12.3f}{spy[key]:>12.3f}")
 
 
+@app.command("factor-ic")
+def factor_ic_cmd(
+    horizon: int = typer.Option(21, help="forward horizon in trading days (~1 month)"),
+    min_names: int = typer.Option(30, help="min rankable names required per date"),
+) -> None:
+    """Cross-sectional (per-date) IC of price-only factors over the expanded universe.
+
+    Monthly is the honest read (non-overlapping ~horizon windows); daily is shown
+    for contrast (overlapping -> inflated t).
+    """
+    setup_logging()
+    init_db()
+    from .research.factor_eval import run_cross_sectional_ic
+
+    cfg = load_config()
+    res, n = run_cross_sectional_ic(cfg.universe, horizon=horizon, min_names=min_names)
+    if not res:
+        typer.echo("No price data. Run `eqa ingest` and `eqa features` first.")
+        raise typer.Exit(1)
+
+    typer.echo(f"\n=== Cross-sectional IC vs {horizon}d forward return - {n} names ===")
+    typer.echo(
+        f"{'factor':<16}{'freq':<9}{'mean_ic':>9}{'t_stat':>9}"
+        f"{'ic_ir':>8}{'hit%':>7}{'n_dt':>6}{'n_nm':>7}"
+    )
+    for name, freqs in res.items():
+        for freq, s in (("monthly", freqs["monthly"]), ("daily", freqs["daily"])):
+            typer.echo(
+                f"{name:<16}{freq:<9}{s.mean_ic:>9.4f}{s.t_stat:>9.2f}{s.ic_ir:>8.3f}"
+                f"{s.hit_rate * 100:>7.1f}{s.n_dates:>6}{s.mean_n_names:>7.0f}"
+            )
+
+
+@app.command("factor-backtest")
+def factor_backtest_cmd(
+    q: float = typer.Option(0.2, help="top-quantile fraction (0.2 = top quintile)"),
+    min_names: int = typer.Option(30, help="min rankable names required per rebalance"),
+    fee_bps: float = typer.Option(1.0, help="per-side commission, bps"),
+    slippage_bps: float = typer.Option(5.0, help="slippage vs open, bps"),
+) -> None:
+    """Monthly top-quantile factor portfolios vs the equal-weight basket + SPY (net of costs)."""
+    setup_logging()
+    init_db()
+    from .backtest.factor_portfolio import run_factor_portfolios
+
+    cfg = load_config()
+    res = run_factor_portfolios(
+        cfg.universe, cfg.benchmark, q=q, min_names=min_names,
+        fee_bps=fee_bps, slippage_bps=slippage_bps,
+    )
+    if not res:
+        typer.echo("No price data. Run `eqa ingest` and `eqa features` first.")
+        raise typer.Exit(1)
+
+    from typing import cast
+
+    from .backtest.factor_portfolio import FactorBacktest
+
+    spy = cast(dict, res["spy"])
+    factors = cast(dict, res["factors"])
+    keys = ("total_return", "cagr", "ann_vol", "sharpe", "sortino", "max_drawdown", "calmar")
+    typer.echo(
+        f"\n=== Monthly factor portfolios (top {q:.0%}) vs basket vs SPY "
+        f"- {res['n_symbols']} names ==="
+    )
+    for name, fb in factors.items():
+        fb = cast(FactorBacktest, fb)
+        typer.echo(f"\n--- {name} ---  turnover={fb.turnover:.1f}  trades={fb.n_trades}")
+        typer.echo(f"{'metric':<14}{'top-Q':>12}{'basket':>12}{'SPY':>12}")
+        for key in keys:
+            typer.echo(f"{key:<14}{fb.portfolio[key]:>12.3f}{fb.basket[key]:>12.3f}{spy[key]:>12.3f}")
+        ls = fb.long_short
+        typer.echo(
+            f"long-short (idealized, gross): ann_ret={ls['ann_return']:.3f} "
+            f"sharpe={ls['sharpe']:.2f} hit={ls['hit_rate'] * 100:.0f}% n={ls['n_periods']}"
+        )
+
+
+@app.command("factor-backtest-pit")
+def factor_backtest_pit_cmd(
+    q: float = typer.Option(0.2, help="top-quantile fraction (0.2 = top quintile)"),
+    min_names: int = typer.Option(30, help="min rankable members required per rebalance"),
+    fee_bps: float = typer.Option(1.0, help="per-side commission, bps"),
+    slippage_bps: float = typer.Option(5.0, help="slippage vs open, bps"),
+) -> None:
+    """Survivorship-corrected factor backtest: rank only point-in-time index members.
+
+    Reconstructs historical S&P 500 membership from Wikipedia (needs network) and
+    masks each rebalance so only names actually in the index that day are ranked.
+    Compare against `eqa factor-backtest` (today's members over all history).
+    """
+    setup_logging()
+    init_db()
+    from .backtest.factor_portfolio import run_pit_factor_portfolios
+    from .data.sp500_history import ever_members, fetch_sp500_changes
+
+    cfg = load_config()
+    changes = fetch_sp500_changes()
+    union = ever_members(cfg.universe, changes, f"{cfg.history_start[:4]}-01-01")
+    res = run_pit_factor_portfolios(
+        union, cfg.universe, changes, cfg.benchmark,
+        q=q, min_names=min_names, fee_bps=fee_bps, slippage_bps=slippage_bps,
+    )
+    if not res:
+        typer.echo("No price data. Run `eqa ingest` first.")
+        raise typer.Exit(1)
+
+    from typing import cast
+
+    basket = cast(dict, res["basket"])
+    spy = cast(dict, res["spy"])
+    factors = cast(dict, res["factors"])
+    keys = ("total_return", "cagr", "ann_vol", "sharpe", "sortino", "max_drawdown", "calmar")
+    typer.echo(
+        f"\n=== POINT-IN-TIME factor portfolios (top {q:.0%}) vs member basket vs SPY ==="
+    )
+    typer.echo(
+        f"union universe={res['n_symbols']} names, "
+        f"avg rankable members/rebalance={res['mean_members']:.0f}"
+    )
+    for name, fb in factors.items():
+        fb = cast(dict, fb)
+        typer.echo(f"\n--- {name} ---  turnover={fb['turnover']:.1f}  trades={fb['n_trades']}")
+        typer.echo(f"{'metric':<14}{'top-Q':>12}{'basket':>12}{'SPY':>12}")
+        port = cast(dict, fb["portfolio"])
+        for key in keys:
+            typer.echo(f"{key:<14}{port[key]:>12.3f}{basket[key]:>12.3f}{spy[key]:>12.3f}")
+        ls = cast(dict, fb["long_short"])
+        typer.echo(
+            f"long-short (idealized, gross): ann_ret={ls['ann_return']:.3f} "
+            f"sharpe={ls['sharpe']:.2f} hit={ls['hit_rate'] * 100:.0f}% n={ls['n_periods']}"
+        )
+
+
 @app.command()
 def status() -> None:
     """Show how many bars are stored per symbol."""

@@ -40,6 +40,7 @@ dev = [
     "mypy>=1.10",
     "types-PyYAML",
     "types-requests",
+    "lxml>=5.0",  # universe.py: parse the S&P 500 constituents table (maintenance only)
 ]
 
 [project.scripts]
