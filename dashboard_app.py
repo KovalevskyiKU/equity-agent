@@ -3,6 +3,7 @@
 
 import streamlit as st
 
+from equity_agent.backtest.overlay_backtest import run_overlay_comparison
 from equity_agent.backtest.panels import load_price_panels
 from equity_agent.config import load_config
 from equity_agent.dashboard.data import (
@@ -47,8 +48,13 @@ def _spy_close():  # type: ignore[no-untyped-def]
     return cb[cfg.benchmark] if not cb.empty else None
 
 
-portfolio_tab, predictions_tab, backtest_tab, signals_tab = st.tabs(
-    ["Paper portfolio", "Predictions", "Backtest (% profit)", "Signals & news"]
+@st.cache_data(show_spinner="Backtesting the risk overlay…")
+def _overlay():  # type: ignore[no-untyped-def]
+    return run_overlay_comparison()
+
+
+portfolio_tab, predictions_tab, backtest_tab, overlay_tab, signals_tab = st.tabs(
+    ["Paper portfolio", "Predictions", "Backtest (% profit)", "Risk overlay", "Signals & news"]
 )
 
 with portfolio_tab:
@@ -104,6 +110,20 @@ with backtest_tab:
         st.subheader("Core vs basket vs benchmark — equity curves")
         st.line_chart(curves)
         st.dataframe(metrics, width="stretch", hide_index=True)
+
+with overlay_tab:
+    st.write(
+        f"**The one validated improvement.** {cfg.benchmark} buy-and-hold vs a vol-target "
+        "overlay (scale exposure by target/realized vol, rest in cash), total-return, net "
+        "of costs. It gives up absolute return for a **better Sharpe/Calmar and ~half the "
+        "drawdown** — crash insurance, with the edge concentrated in 2020/2022. Enable via "
+        "`config.risk_overlay: vol_target`."
+    )
+    ov_df = _overlay()
+    if ov_df.empty:
+        st.info("No price data. Run `eqa ingest`.")
+    else:
+        st.dataframe(ov_df, width="stretch", hide_index=True)
 
 with signals_tab:
     news = recent_news()

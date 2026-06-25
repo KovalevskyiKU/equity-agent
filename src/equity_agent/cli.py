@@ -550,6 +550,18 @@ def walkforward(
         typer.echo(f"{key:<14}{strat[key]:>12.3f}{basket[key]:>12.3f}{spy[key]:>12.3f}")
 
 
+@app.command("research-report")
+def research_report_cmd() -> None:
+    """Regenerate the headline findings (factor verdict + overlay) to data/reports/."""
+    setup_logging()
+    init_db()
+    from .research.report import write_report
+
+    path = write_report()
+    typer.echo(f"Wrote {path}\n")
+    typer.echo(path.read_text(encoding="utf-8"))
+
+
 @app.command("backtest-overlay")
 def backtest_overlay_cmd(
     band: float = typer.Option(0.05, help="no-trade band on exposure (cuts churn)"),
