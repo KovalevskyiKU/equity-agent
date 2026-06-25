@@ -488,3 +488,30 @@ removing risk. It does *not* beat SPY on absolute return. Recommendation: for a
 risk-averse mandate, run `risk_overlay: vol_target` (target ~15%); for max absolute
 return, hold plain SPY. Default left at `none` (don't silently trade off return); it's
 a one-line config flip, now validated.
+
+### Final research shot — multi-factor composite + the LLM question (2026-06-25)
+
+Combined the four factors with any cross-sectional signal (momentum + earnings_yield +
+roe + gross_margin) into one sector-neutral, equal-weight z-score composite and tested
+it point-in-time, total-return, net of costs:
+
+| strategy (PIT, total-return) | Sharpe | total | x-sec IC |
+|------------------------------|-------:|------:|---------:|
+| multi-factor composite       | 0.718  | 2.57x | −0.005 (t −0.47) |
+| member basket                | 0.696  | 2.51x | —        |
+| **SPY**                      | 0.815  | 3.34x | —        |
+
+It does **not** beat SPY; adding momentum to the value/quality mix actually drove the
+composite IC to zero. So even the best legitimate combination fails on total return.
+
+**LLM overlay — deliberately not pursued.** The earlier LLM-agent backtests
+(PHASE 2) never beat the basket risk-adjusted in any clean window and were
+prompt-sensitive and quota-limited; the whole arc shows no "smart layer" beats SPY.
+Spending API quota on another LLM stock-picking overlay is low-EV. The LLM's
+*validated* role stays narrow: the **news risk-off gate** (already built). Treat
+qualitative-LLM alpha as out of scope unless the data/universe changes.
+
+**Project research conclusion (final):** the hunt is closed. Hold the cap-weighted
+index (SPY); optionally run the validated vol-target overlay for a risk-adjusted
+mandate. All further value is operational (execution, monitoring, cost/risk), not
+alpha.
