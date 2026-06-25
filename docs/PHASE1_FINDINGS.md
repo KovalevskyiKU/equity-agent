@@ -489,6 +489,15 @@ risk-averse mandate, run `risk_overlay: vol_target` (target ~15%); for max absol
 return, hold plain SPY. Default left at `none` (don't silently trade off return); it's
 a one-line config flip, now validated.
 
+**Robustness (not overfit, but regime-dependent).** Across target vols 10–20% the
+overlay's Sharpe is stable at 0.87–0.89 (all > SPY's 0.815), Calmar 0.56–0.69, max
+drawdown −13% to −22% — so the choice of target isn't knife-edge (10% best Calmar but
+turnover ~39; 15% the balance at ~21; 20% turnover ~11). The honest nuance from rolling
+1-year windows: the overlay has a **shallower drawdown in 93%** of windows but its
+**rolling Sharpe beats SPY in only 25%** — its edge is concentrated in crash regimes
+(2020/2022); in calm bull years it is a drag. So it is **crash insurance** that lifts
+full-period risk-adjusted metrics, not a free win. Reproduce with `eqa backtest-overlay`.
+
 ### Final research shot — multi-factor composite + the LLM question (2026-06-25)
 
 Combined the four factors with any cross-sectional signal (momentum + earnings_yield +
