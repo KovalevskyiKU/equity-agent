@@ -442,3 +442,25 @@ SPY on return, and the blend is *worse* than SPY (the equal-weight core drags). 
 cost-aware factor tilt adds nothing over holding SPY.** Final decision: the core is
 SPY-tracking; factor research is closed as an honest null. Remaining work is execution
 (IBKR), risk overlays, and monitoring — not alpha hunting on this universe.
+
+### Total-return (dividend-adjusted) check (2026-06-25)
+
+All earlier backtests were *price-return* (raw close — splits handled, dividends not),
+which understates SPY's ~1.5%/yr dividend. Added `load_price_panels(total_return=True)`
+(scale open/close by `adj_close/close`) and re-ran the point-in-time verdict on
+**total return**:
+
+| factor (PIT, total-return) | Sharpe | total | dSharpe vs SPY |
+|----------------------------|-------:|------:|---------------:|
+| **SPY (cap-weight)**       | 0.815  | 3.34x | 0.000          |
+| gross_margin               | 0.795  | 4.19x | −0.020         |
+| roe                        | 0.765  | 2.99x | −0.050         |
+| momentum_12_1              | 0.749  | 3.09x | −0.066         |
+| low_vol                    | 0.715  | 1.84x | −0.100         |
+| member basket              | 0.696  | 2.51x | −0.119         |
+| earnings_yield             | 0.657  | 2.95x | −0.158         |
+
+Dividends lift SPY from 2.59x/0.72 (price) to **3.34x/0.815** (total), which closes the
+last nominal gap: in price-return gross_margin edged SPY on Sharpe (0.75 vs 0.72); in
+total-return **no factor beats SPY on Sharpe — full stop.** The verdict is not only
+intact but cleaner once the benchmark is measured honestly.

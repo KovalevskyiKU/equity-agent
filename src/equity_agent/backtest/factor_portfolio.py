@@ -228,6 +228,7 @@ def run_pit_factor_portfolios(
     fee_bps: float = 1.0,
     slippage_bps: float = 5.0,
     with_fundamentals: bool = False,
+    total_return: bool = False,
 ) -> dict[str, object]:
     """Point-in-time factor backtest: rank only names that were index members that day.
 
@@ -239,7 +240,7 @@ def run_pit_factor_portfolios(
     from ..data.sp500_history import membership_mask
     from .panels import load_price_panels
 
-    open_px, close_px = load_price_panels(union)
+    open_px, close_px = load_price_panels(union, total_return=total_return)
     if close_px.empty:
         return {}
 
@@ -275,7 +276,7 @@ def run_pit_factor_portfolios(
             "n_trades": port.n_trades,
         }
 
-    open_b, close_b = load_price_panels([benchmark])
+    open_b, close_b = load_price_panels([benchmark], total_return=total_return)
     spy = run_backtest(open_b, close_b, single_asset(close_b, benchmark), cfg)
 
     rebal_in = [d for d in rebal if d in tradable.index]
