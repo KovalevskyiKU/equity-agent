@@ -18,9 +18,11 @@ import pandas as pd
 TRADING_DAYS = 252
 
 
-def realized_vol(returns: pd.Series, lookback: int = 20) -> pd.Series:
-    """Trailing annualized volatility of a daily-return series."""
-    return returns.rolling(lookback).std() * np.sqrt(TRADING_DAYS)
+def realized_vol(
+    returns: pd.Series, lookback: int = 20, trading_days: int = TRADING_DAYS
+) -> pd.Series:
+    """Trailing annualized volatility of a return series (``trading_days`` = 365 for crypto)."""
+    return returns.rolling(lookback).std() * np.sqrt(trading_days)
 
 
 def vol_target_exposure(
@@ -29,13 +31,14 @@ def vol_target_exposure(
     target_vol: float = 0.15,
     lookback: int = 20,
     max_exposure: float = 1.0,
+    trading_days: int = TRADING_DAYS,
 ) -> float:
     """Latest exposure scalar in ``[0, max_exposure]`` for a vol-target overlay.
 
     Returns ``max_exposure`` when there isn't enough history to estimate vol (fail
     open to full exposure rather than silently sitting in cash).
     """
-    av = realized_vol(returns, lookback)
+    av = realized_vol(returns, lookback, trading_days)
     if len(av) == 0:
         return max_exposure
     last = float(av.iloc[-1])
@@ -51,14 +54,16 @@ def vol_target_exposure_series(
     lookback: int = 20,
     max_exposure: float = 1.0,
     band: float = 0.0,
+    trading_days: int = TRADING_DAYS,
 ) -> pd.Series:
     """Full daily exposure series for a vol-target overlay (for backtesting).
 
     Warm-up (insufficient vol history) holds full exposure. ``band`` adds a no-trade
     buffer: exposure only moves when it would change by more than ``band``, which cuts
-    the daily churn (and trading cost) of a naive vol-target.
+    the daily churn (and trading cost) of a naive vol-target. ``trading_days`` = 365
+    for crypto.
     """
-    av = realized_vol(returns, lookback)
+    av = realized_vol(returns, lookback, trading_days)
     raw = (target_vol / av).clip(upper=max_exposure)
     raw = raw.where(np.isfinite(raw)).fillna(max_exposure)
     if band <= 0:

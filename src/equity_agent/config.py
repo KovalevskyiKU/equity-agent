@@ -90,6 +90,10 @@ class ProjectConfig(BaseModel):
     timeframe: str = "1d"
     history_start: str = "2015-01-01"
     fred_series: list[str] = Field(default_factory=list)
+    # Crypto (separate asset class — 24/7, 365-day year, no dividends, brutal
+    # survivorship). Empty by default; populated for the crypto research phase.
+    crypto_universe: list[str] = Field(default_factory=list)
+    crypto_benchmark: str = "BTC-USD"
     data_dir: Path = Path("data")
 
     @property

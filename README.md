@@ -98,6 +98,19 @@ eqa factor-backtest-pit --fundamentals  :: survivorship-corrected, value/quality
 > membership and fundamentals are point-in-time. `factor-backtest`/`backtest-sweep`
 > use today's universe and are survivorship-biased (they print a NOTE).
 
+Crypto (separate asset class, 365-day year, bar = hold BTC):
+
+```cmd
+eqa ingest-crypto                :: daily bars for the crypto universe (yfinance)
+eqa backtest-crypto              :: hold-BTC vs trend / vol-target / alt-momentum
+eqa backtest-overlay --crypto    :: vol-target overlay on BTC across target vols
+```
+
+> Crypto verdict ([`docs/CRYPTO_FINDINGS.md`](docs/CRYPTO_FINDINGS.md)): unlike
+> equities, **trend-following beats buy-and-hold BTC** risk-adjusted (Sharpe 1.14 vs
+> 1.02, −68% vs −83% drawdown), robust across MA parameters; vol-targeting and
+> alt-momentum do not. Survivorship caveats apply.
+
 ### Run it daily (orchestration)
 
 `eqa daily` does the whole cycle: ingest latest bars → rebuild features → paper

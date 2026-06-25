@@ -78,6 +78,31 @@ def ingest(
         log.info("FRED: %d obs across %d series", sum(fred.values()), len(fred))
 
 
+@app.command("ingest-crypto")
+def ingest_crypto_cmd(
+    start: str = typer.Option(None, help="ISO date; defaults to config.history_start"),
+    end: str = typer.Option(None, help="ISO date; defaults to today"),
+) -> None:
+    """Fetch and store daily bars for the crypto universe (yfinance '-USD', no key)."""
+    log = setup_logging()
+    init_monitoring()
+    init_db()
+    cfg = load_config()
+    syms = list(dict.fromkeys([cfg.crypto_benchmark, *cfg.crypto_universe]))
+    if not syms:
+        typer.echo("No crypto_universe configured.")
+        raise typer.Exit(1)
+    start_d = date.fromisoformat(start) if start else date.fromisoformat(cfg.history_start)
+    end_d = date.fromisoformat(end) if end else date.today()
+    log.info("Ingesting crypto %s -> %s for %d symbols", start_d, end_d, len(syms))
+    result = ingest_daily_bars(syms, start_d, end_d, YFinanceProvider())
+    got = sum(1 for v in result.values() if v > 0)
+    log.info(
+        "Crypto ingest: %d new bars, %d/%d symbols with data",
+        sum(result.values()), got, len(syms),
+    )
+
+
 @app.command()
 def features() -> None:
     """Build the per-symbol feature store (Parquet) from stored daily bars."""
@@ -566,25 +591,50 @@ def research_report_cmd() -> None:
 def backtest_overlay_cmd(
     band: float = typer.Option(0.05, help="no-trade band on exposure (cuts churn)"),
     lookback: int = typer.Option(20, help="realized-vol lookback, days"),
+    crypto: bool = typer.Option(False, help="use the crypto benchmark + 365-day calendar"),
 ) -> None:
-    """SPY buy-hold vs vol-target overlay across target vols (total-return, net of costs).
+    """Benchmark buy-hold vs vol-target overlay across target vols (net of costs).
 
-    The one validated improvement: the overlay gives up absolute return for a better
-    Sharpe/Calmar and a much shallower drawdown. Enable via config.risk_overlay.
+    Equities: the overlay improves Sharpe/Calmar at a return cost. Crypto (--crypto):
+    it does NOT — BTC's big rallies are also high-vol, so vol-targeting only cuts the
+    drawdown (and the upside). See docs/CRYPTO_FINDINGS.md.
     """
     setup_logging()
     init_db()
     from .backtest.overlay_backtest import run_overlay_comparison
 
-    df = run_overlay_comparison(band=band, lookback=lookback)
-    if df.empty:
-        typer.echo("No price data. Run `eqa ingest` first.")
-        raise typer.Exit(1)
     cfg = load_config()
-    typer.echo(
-        f"\n=== {cfg.benchmark} buy-hold vs vol-target overlay "
-        "(total-return, net costs) ==="
+    if crypto:
+        bench, tdays, tvs = cfg.crypto_benchmark, 365, (0.30, 0.50, 0.70)
+    else:
+        bench, tdays, tvs = cfg.benchmark, 252, (0.10, 0.15, 0.20)
+    df = run_overlay_comparison(
+        tvs, benchmark=bench, band=band, lookback=lookback, trading_days=tdays
     )
+    if df.empty:
+        typer.echo("No price data. Run `eqa ingest`/`ingest-crypto` first.")
+        raise typer.Exit(1)
+    cal = "365-day" if crypto else "total-return"
+    typer.echo(f"\n=== {bench} buy-hold vs vol-target overlay ({cal}, net costs) ===")
+    typer.echo(df.to_string(index=False))
+
+
+@app.command("backtest-crypto")
+def backtest_crypto_cmd() -> None:
+    """Crypto: hold-BTC vs trend / vol-target / alt-momentum (365-day, net of crypto costs).
+
+    Verdict: trend-following beats buy-and-hold BTC risk-adjusted; vol-target and
+    alt-momentum do not. See docs/CRYPTO_FINDINGS.md. Needs `eqa ingest-crypto`.
+    """
+    setup_logging()
+    init_db()
+    from .backtest.crypto import run_crypto_comparison
+
+    df = run_crypto_comparison()
+    if df.empty:
+        typer.echo("No crypto data. Run `eqa ingest-crypto` first.")
+        raise typer.Exit(1)
+    typer.echo("\n=== Crypto: hold-BTC vs managed strategies (365-day, net of costs) ===")
     typer.echo(df.to_string(index=False))
 
 
