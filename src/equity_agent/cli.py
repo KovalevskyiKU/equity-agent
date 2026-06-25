@@ -550,6 +550,44 @@ def walkforward(
         typer.echo(f"{key:<14}{strat[key]:>12.3f}{basket[key]:>12.3f}{spy[key]:>12.3f}")
 
 
+@app.command("research-report")
+def research_report_cmd() -> None:
+    """Regenerate the headline findings (factor verdict + overlay) to data/reports/."""
+    setup_logging()
+    init_db()
+    from .research.report import write_report
+
+    path = write_report()
+    typer.echo(f"Wrote {path}\n")
+    typer.echo(path.read_text(encoding="utf-8"))
+
+
+@app.command("backtest-overlay")
+def backtest_overlay_cmd(
+    band: float = typer.Option(0.05, help="no-trade band on exposure (cuts churn)"),
+    lookback: int = typer.Option(20, help="realized-vol lookback, days"),
+) -> None:
+    """SPY buy-hold vs vol-target overlay across target vols (total-return, net of costs).
+
+    The one validated improvement: the overlay gives up absolute return for a better
+    Sharpe/Calmar and a much shallower drawdown. Enable via config.risk_overlay.
+    """
+    setup_logging()
+    init_db()
+    from .backtest.overlay_backtest import run_overlay_comparison
+
+    df = run_overlay_comparison(band=band, lookback=lookback)
+    if df.empty:
+        typer.echo("No price data. Run `eqa ingest` first.")
+        raise typer.Exit(1)
+    cfg = load_config()
+    typer.echo(
+        f"\n=== {cfg.benchmark} buy-hold vs vol-target overlay "
+        "(total-return, net costs) ==="
+    )
+    typer.echo(df.to_string(index=False))
+
+
 @app.command("live-run")
 def live_run_cmd(
     execute: bool = typer.Option(

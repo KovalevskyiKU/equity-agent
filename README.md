@@ -1,5 +1,7 @@
 # equity-agent
 
+[![CI](https://github.com/KovalevskyiKU/equity-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/KovalevskyiKU/equity-agent/actions/workflows/ci.yml)
+
 Multi-signal, agentic **US-equities daily-swing** trading system.
 
 The decision core is a multi-agent LLM (analysts → bull/bear debate → trader →
