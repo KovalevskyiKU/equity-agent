@@ -442,3 +442,76 @@ SPY on return, and the blend is *worse* than SPY (the equal-weight core drags). 
 cost-aware factor tilt adds nothing over holding SPY.** Final decision: the core is
 SPY-tracking; factor research is closed as an honest null. Remaining work is execution
 (IBKR), risk overlays, and monitoring — not alpha hunting on this universe.
+
+### Total-return (dividend-adjusted) check (2026-06-25)
+
+All earlier backtests were *price-return* (raw close — splits handled, dividends not),
+which understates SPY's ~1.5%/yr dividend. Added `load_price_panels(total_return=True)`
+(scale open/close by `adj_close/close`) and re-ran the point-in-time verdict on
+**total return**:
+
+| factor (PIT, total-return) | Sharpe | total | dSharpe vs SPY |
+|----------------------------|-------:|------:|---------------:|
+| **SPY (cap-weight)**       | 0.815  | 3.34x | 0.000          |
+| gross_margin               | 0.795  | 4.19x | −0.020         |
+| roe                        | 0.765  | 2.99x | −0.050         |
+| momentum_12_1              | 0.749  | 3.09x | −0.066         |
+| low_vol                    | 0.715  | 1.84x | −0.100         |
+| member basket              | 0.696  | 2.51x | −0.119         |
+| earnings_yield             | 0.657  | 2.95x | −0.158         |
+
+Dividends lift SPY from 2.59x/0.72 (price) to **3.34x/0.815** (total), which closes the
+last nominal gap: in price-return gross_margin edged SPY on Sharpe (0.75 vs 0.72); in
+total-return **no factor beats SPY on Sharpe — full stop.** The verdict is not only
+intact but cleaner once the benchmark is measured honestly.
+
+### Vol-target overlay on SPY — the one validated improvement (2026-06-25)
+
+Alpha is dead, but **risk management is not.** Backtested SPY buy-and-hold vs a
+vol-target overlay on SPY (scale exposure by `target_vol / realized_vol`, rest in
+cash; a no-trade band cuts churn). Total-return, net of costs:
+
+| strategy            | total | CAGR  | vol   | Sharpe | max DD | Calmar | turnover |
+|---------------------|------:|------:|------:|-------:|-------:|-------:|---------:|
+| SPY buy-hold        | 3.34x | 13.7% | 17.7% | 0.815  | −33.7% | 0.41   | 0.5      |
+| vol-target 15% band | 2.38x | 11.2% | 12.9% | **0.888** | **−19.8%** | **0.57** | 21.0 |
+| vol-target 10% band | 1.69x | 9.0%  | 10.3% | 0.888  | −13.2% | 0.69   | 38.7     |
+
+The overlay **improves Sharpe (0.89 vs 0.82) and Calmar (0.57 vs 0.41) and roughly
+halves the max drawdown** (−20% vs −34%; in the 2020 crash −17% vs −34%, 2022 −20% vs
+−24%) — at a real cost of ~2.5pp CAGR (it gives up upside for downside protection).
+The no-trade band keeps turnover ~21 (vs 27 unbanded) with the same result.
+
+This is the **first construction that beats plain SPY on the project's stated
+objective (risk-adjusted: Sharpe / Calmar / drawdown)** — not by adding return, but by
+removing risk. It does *not* beat SPY on absolute return. Recommendation: for a
+risk-averse mandate, run `risk_overlay: vol_target` (target ~15%); for max absolute
+return, hold plain SPY. Default left at `none` (don't silently trade off return); it's
+a one-line config flip, now validated.
+
+### Final research shot — multi-factor composite + the LLM question (2026-06-25)
+
+Combined the four factors with any cross-sectional signal (momentum + earnings_yield +
+roe + gross_margin) into one sector-neutral, equal-weight z-score composite and tested
+it point-in-time, total-return, net of costs:
+
+| strategy (PIT, total-return) | Sharpe | total | x-sec IC |
+|------------------------------|-------:|------:|---------:|
+| multi-factor composite       | 0.718  | 2.57x | −0.005 (t −0.47) |
+| member basket                | 0.696  | 2.51x | —        |
+| **SPY**                      | 0.815  | 3.34x | —        |
+
+It does **not** beat SPY; adding momentum to the value/quality mix actually drove the
+composite IC to zero. So even the best legitimate combination fails on total return.
+
+**LLM overlay — deliberately not pursued.** The earlier LLM-agent backtests
+(PHASE 2) never beat the basket risk-adjusted in any clean window and were
+prompt-sensitive and quota-limited; the whole arc shows no "smart layer" beats SPY.
+Spending API quota on another LLM stock-picking overlay is low-EV. The LLM's
+*validated* role stays narrow: the **news risk-off gate** (already built). Treat
+qualitative-LLM alpha as out of scope unless the data/universe changes.
+
+**Project research conclusion (final):** the hunt is closed. Hold the cap-weighted
+index (SPY); optionally run the validated vol-target overlay for a risk-adjusted
+mandate. All further value is operational (execution, monitoring, cost/risk), not
+alpha.

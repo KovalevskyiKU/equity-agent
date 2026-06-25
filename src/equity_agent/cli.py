@@ -459,7 +459,8 @@ def paper_status_cmd() -> None:
 def daily(
     risk_off: bool = typer.Option(True, help="apply the LLM news risk-off gate"),
 ) -> None:
-    """Full daily cycle: ingest latest bars -> rebuild features -> paper rebalance."""
+    """Full daily cycle: ingest latest bars -> (features for non-spy cores) ->
+    paper rebalance -> monitor snapshot."""
     from datetime import UTC, datetime, timedelta
 
     log = setup_logging()
@@ -472,12 +473,35 @@ def daily(
     cfg = load_config()
     today = datetime.now(UTC).date()
     ingest_daily_bars(cfg.all_data_symbols, today - timedelta(days=10), today, YFinanceProvider())
-    build_feature_store()
+    # The per-symbol feature store feeds the LLM decision agent / research, not the
+    # SPY core or the news risk-off gate — skip its (heavy) rebuild for the spy core.
+    if cfg.core_strategy != "spy":
+        build_feature_store()
+    else:
+        log.info("core=spy: skipping feature-store rebuild")
     res = run_paper(risk_off=risk_off)
     log.info(
         "Daily done: equity=$%.2f cash=$%.2f (%d names held)",
         res["equity"], res["cash"], int(res["n_positions"]),
     )
+
+    # End-of-cycle monitor snapshot (drawdown / Sharpe / tracking vs benchmark).
+    from .backtest.panels import load_price_panels
+    from .dashboard.data import paper_overview
+    from .monitoring import monitor_summary
+
+    _, close_b = load_price_panels([cfg.benchmark])
+    spy_close = close_b[cfg.benchmark] if not close_b.empty else None
+    mon = monitor_summary(paper_overview()["equity_curve"], spy_close)
+    if "total_return" in mon:
+        log.info(
+            "Monitor: total %.2f%%  maxDD %.2f%%  Sharpe %.2f%s",
+            mon["total_return"] * 100,
+            mon["max_drawdown"] * 100,
+            mon["sharpe"],
+            f"  excess vs {cfg.benchmark} {mon['excess_vs_spy'] * 100:+.2f}%"
+            if "excess_vs_spy" in mon else "",
+        )
 
 
 @app.command()

@@ -42,3 +42,31 @@ def vol_target_exposure(
     if not np.isfinite(last) or last <= 0:
         return max_exposure
     return float(min(max_exposure, target_vol / last))
+
+
+def vol_target_exposure_series(
+    returns: pd.Series,
+    *,
+    target_vol: float = 0.15,
+    lookback: int = 20,
+    max_exposure: float = 1.0,
+    band: float = 0.0,
+) -> pd.Series:
+    """Full daily exposure series for a vol-target overlay (for backtesting).
+
+    Warm-up (insufficient vol history) holds full exposure. ``band`` adds a no-trade
+    buffer: exposure only moves when it would change by more than ``band``, which cuts
+    the daily churn (and trading cost) of a naive vol-target.
+    """
+    av = realized_vol(returns, lookback)
+    raw = (target_vol / av).clip(upper=max_exposure)
+    raw = raw.where(np.isfinite(raw)).fillna(max_exposure)
+    if band <= 0:
+        return raw
+    out: list[float] = []
+    cur = max_exposure
+    for v in raw.to_numpy():
+        if abs(float(v) - cur) > band:
+            cur = float(v)
+        out.append(cur)
+    return pd.Series(out, index=raw.index)
