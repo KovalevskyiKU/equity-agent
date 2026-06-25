@@ -538,4 +538,31 @@ fred_series:            # macro series from FRED (needs FRED_API_KEY)
   - DFII10              # 10-year real yield (TIPS)
   - BAMLH0A0HYM2        # high-yield credit OAS spread
 
+# Crypto research universe (separate asset class). yfinance "-USD" daily, no key.
+# SURVIVORSHIP WARNING (worse than equities): these are *survivors* — many past
+# top-20 coins are dead (LUNA, FTT, ...) and absent here, so cross-sectional alt
+# results are an upper bound. Benchmark = BTC (the "hold it" bar, like SPY).
+crypto_benchmark: "BTC-USD"
+crypto_universe:
+  - "BTC-USD"
+  - "ETH-USD"
+  - "BNB-USD"
+  - "XRP-USD"
+  - "ADA-USD"
+  - "SOL-USD"
+  - "DOGE-USD"
+  - "DOT-USD"
+  - "AVAX-USD"
+  - "LINK-USD"
+  - "LTC-USD"
+  - "BCH-USD"
+  - "XLM-USD"
+  - "ATOM-USD"
+  - "ETC-USD"
+  - "UNI-USD"
+  - "AAVE-USD"
+  - "ALGO-USD"
+  - "FIL-USD"
+  - "XMR-USD"
+
 data_dir: data
