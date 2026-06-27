@@ -1,4 +1,5 @@
 from equity_agent.dashboard.data import (
+    crypto_overview,
     factor_leaderboard,
     factor_performance,
     paper_overview,
@@ -30,3 +31,10 @@ def test_factor_leaderboard_no_data(temp_db: None) -> None:
 
 def test_factor_performance_no_data(temp_db: None) -> None:
     assert factor_performance().empty
+
+
+def test_crypto_overview_no_data(temp_db: None) -> None:
+    # No crypto bars -> empty comparison and no network funding fetch.
+    ov = crypto_overview()
+    assert ov["comparison"].empty
+    assert ov["funding"].empty

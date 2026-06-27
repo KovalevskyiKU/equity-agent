@@ -133,6 +133,37 @@ def factor_performance() -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def crypto_overview() -> dict[str, pd.DataFrame]:
+    """Crypto comparison (hold-BTC vs managed) + funding carry, for the dashboard.
+
+    Funding is only fetched (network) when crypto price data exists, so the empty
+    case is cheap and offline.
+    """
+    from ..backtest.crypto import run_crypto_comparison
+    from ..data.funding import carry_summary, fetch_funding
+
+    comparison = run_crypto_comparison()
+    if comparison.empty:
+        return {"comparison": comparison, "funding": pd.DataFrame()}
+
+    rows = []
+    for sym in ("BTCUSDT", "ETHUSDT"):
+        f = fetch_funding(sym)
+        if f.empty:
+            continue
+        s = carry_summary(f)
+        rows.append(
+            {
+                "perp": sym,
+                "gross_%/yr": round(s["ann_carry_gross"] * 100, 1),
+                "net_%/yr": round(s["ann_carry_net"] * 100, 1),
+                "pos_%": round(s["pct_positive"] * 100, 0),
+                "n": s["n"],
+            }
+        )
+    return {"comparison": comparison, "funding": pd.DataFrame(rows)}
+
+
 def recent_news(limit: int = 50) -> pd.DataFrame:
     with session_scope() as s:
         rows = [
