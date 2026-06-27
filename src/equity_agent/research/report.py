@@ -53,11 +53,13 @@ def _factor_table() -> pd.DataFrame:
 
 def generate_report() -> str:
     """Build the Markdown report (point-in-time, total-return, net of costs)."""
+    from ..backtest.crypto import run_crypto_comparison
     from ..backtest.overlay_backtest import run_overlay_comparison
 
     cfg = load_config()
     factors = _factor_table()
     overlay = run_overlay_comparison()
+    crypto = run_crypto_comparison()
 
     parts = [
         "# Reproducible research report",
@@ -83,6 +85,15 @@ def generate_report() -> str:
         "",
         "The overlay trades absolute return for a better Sharpe/Calmar and ~half the "
         "drawdown (crash insurance). Enable via `config.risk_overlay: vol_target`.",
+        "",
+        "## Crypto: hold-BTC vs managed (365-day, net of crypto costs)",
+        "",
+        "```",
+        crypto.to_string(index=False) if not crypto.empty else "no data — run `eqa ingest-crypto`",
+        "```",
+        "",
+        "Trend ≈ drawdown control; vol-target/alt-momentum do not beat hold-BTC. "
+        "Funding carry (`eqa crypto-funding`) is a separate structural ~10%/yr yield.",
         "",
     ]
     return "\n".join(parts)

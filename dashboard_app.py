@@ -7,6 +7,7 @@ from equity_agent.backtest.overlay_backtest import run_overlay_comparison
 from equity_agent.backtest.panels import load_price_panels
 from equity_agent.config import load_config
 from equity_agent.dashboard.data import (
+    crypto_overview,
     factor_leaderboard,
     factor_performance,
     paper_overview,
@@ -53,8 +54,16 @@ def _overlay():  # type: ignore[no-untyped-def]
     return run_overlay_comparison()
 
 
-portfolio_tab, predictions_tab, backtest_tab, overlay_tab, signals_tab = st.tabs(
-    ["Paper portfolio", "Predictions", "Backtest (% profit)", "Risk overlay", "Signals & news"]
+@st.cache_data(show_spinner="Backtesting crypto + fetching funding…")
+def _crypto():  # type: ignore[no-untyped-def]
+    return crypto_overview()
+
+
+portfolio_tab, predictions_tab, backtest_tab, overlay_tab, crypto_tab, signals_tab = st.tabs(
+    [
+        "Paper portfolio", "Predictions", "Backtest (% profit)",
+        "Risk overlay", "Crypto", "Signals & news",
+    ]
 )
 
 with portfolio_tab:
@@ -124,6 +133,26 @@ with overlay_tab:
         st.info("No price data. Run `eqa ingest`.")
     else:
         st.dataframe(ov_df, width="stretch", hide_index=True)
+
+with crypto_tab:
+    st.write(
+        "Crypto (24/7, bar = **hold BTC**, net of higher crypto costs). Verdict: as in "
+        "equities, beating buy-and-hold on *return* is hard. Two modest real edges — "
+        "**trend** (drawdown control) and **funding carry** (structural yield). "
+        "Directional bets (vol-target, long/short, alt-momentum) don't beat hold-BTC. "
+        "See docs/CRYPTO_FINDINGS.md."
+    )
+    cr = _crypto()
+    comp = cr["comparison"]
+    if comp.empty:
+        st.info("No crypto data. Run `eqa ingest-crypto`.")
+    else:
+        st.subheader("Hold-BTC vs managed strategies (365-day, net of costs)")
+        st.dataframe(comp, width="stretch", hide_index=True)
+        fund = cr["funding"]
+        if not fund.empty:
+            st.subheader("Funding carry — delta-neutral, annualized (decaying)")
+            st.dataframe(fund, width="stretch", hide_index=True)
 
 with signals_tab:
     news = recent_news()
