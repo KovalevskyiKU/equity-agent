@@ -663,6 +663,55 @@ def crypto_funding_cmd(
     typer.echo("(2021 ~31%/yr -> 2025-26 ~1-5%/yr) and carries operational/basis risk.")
 
 
+@app.command("crypto-live-run")
+def crypto_live_run_cmd(
+    execute: bool = typer.Option(
+        False, "--execute", help="TRANSMIT real Binance orders (else dry-run)"
+    ),
+    fast: int = typer.Option(20, help="trend fast SMA"),
+    slow: int = typer.Option(100, help="trend slow SMA"),
+    min_notional: float = typer.Option(10.0, help="skip orders below this notional (USDT)"),
+) -> None:
+    """Plan (and with --execute, transmit) Binance spot orders to the crypto core.
+
+    Crypto core = trend-managed BTC (the validated edge): hold BTC while in an uptrend,
+    else cash. Dry-run by default. Needs the [crypto-exec] extra + Binance keys in .env.
+    """
+    setup_logging()
+    init_db()
+    from .backtest.crypto import trend_weights
+    from .backtest.panels import load_price_panels
+    from .config import get_settings
+    from .execution.crypto_broker import BinanceBroker
+
+    cfg = load_config()
+    s = get_settings()
+    _, cb = load_price_panels([cfg.crypto_benchmark])
+    if cb.empty:
+        typer.echo("No crypto data. Run `eqa ingest-crypto` first.")
+        raise typer.Exit(1)
+    bench = cfg.crypto_benchmark
+    sig = float(trend_weights(cb, bench, fast=fast, slow=slow)[bench].iloc[-1])
+    target = {bench: sig}
+    prices = {bench: float(cb[bench].iloc[-1])}
+
+    broker = BinanceBroker(s.binance_api_key, s.binance_secret)
+    try:
+        broker.connect()
+        orders = broker.rebalance(target, prices, execute=execute, min_notional=min_notional)
+    except Exception as e:  # noqa: BLE001 - surface any connect/auth problem clearly
+        typer.echo(f"Binance not reachable (need [crypto-exec] extra + keys in .env): {e}")
+        raise typer.Exit(1) from e
+
+    mode = "TRANSMITTED" if execute else "DRY-RUN (nothing sent)"
+    state = "uptrend -> hold BTC" if sig > 0 else "downtrend -> cash"
+    typer.echo(f"\n=== Binance {mode} - crypto core = trend-managed BTC ({state}) ===")
+    for o in orders:
+        typer.echo(f"  {o.side:<4} {o.symbol:<8} qty={o.qty:g}  ~${o.est_notional:,.0f}")
+    if not orders:
+        typer.echo("  (no orders - already at target)")
+
+
 @app.command("live-run")
 def live_run_cmd(
     execute: bool = typer.Option(

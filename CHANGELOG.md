@@ -2,6 +2,20 @@
 
 Notable changes, newest first. Dates are when the work landed on `main`.
 
+## 2026-06 — Crypto (separate asset class)
+
+- 24/7, 365-day calendar; 20-coin universe via yfinance; bar = **hold BTC**.
+- **Trend-following BTC** beats buy-and-hold risk-adjusted in-sample (Sharpe 1.14
+  vs 1.02, robust across MA params); out-of-sample (walk-forward) the edge is
+  marginal (1.07) — really a **drawdown-control** tool (−72% vs −83%) at a return
+  cost. Vol-targeting, long/short trend, alt-momentum and alt-trend do **not** beat
+  hold-BTC.
+- **Funding carry** (Binance free API): a structural ~10%/yr delta-neutral yield,
+  positive every year but decaying (2021 ~31% → 2026 ~1%).
+- Tooling: `eqa ingest-crypto`, `backtest-crypto`, `backtest-overlay --crypto`,
+  `crypto-funding`; dashboard Crypto tab; `crypto-live-run` (Binance/ccxt, dry-run
+  by default). See `docs/CRYPTO_FINDINGS.md`.
+
 ## 2026-06 — Phase 2/3: cross-sectional research, point-in-time, honest core
 
 - **Universe → S&P 500** (503 names, config-driven) with batched yfinance ingest.
