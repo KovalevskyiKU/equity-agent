@@ -77,10 +77,11 @@ pip install -e ".[ui]"
 python app.py                   :: <- run this (or click Run on app.py in PyCharm)
 ```
 
-Opens at http://localhost:8501 with four tabs: **Paper portfolio** (equity, P&L,
+Opens at http://localhost:8501 with six tabs: **Paper portfolio** (equity, P&L,
 drawdown, tracking vs SPY), **Predictions** (top names each factor favors now),
-**Backtest (% profit)** (factor portfolios vs SPY), **Signals & news**. Equivalent:
-`eqa dashboard` or `streamlit run dashboard_app.py`.
+**Backtest (% profit)** (factor portfolios vs SPY), **Risk overlay** (SPY vs
+vol-target), **Crypto** (hold-BTC vs managed + funding carry), **Signals & news**.
+Equivalent: `eqa dashboard` or `streamlit run dashboard_app.py`.
 
 Backtesting: `eqa backtest --strategy vol-target`, `eqa backtest-sweep` (rolling,
 no LLM), `eqa backtest-llm` (LLM agent), `eqa backtest-kronos` (Kronos rule).
@@ -109,10 +110,11 @@ pip install -e ".[crypto-exec]"  :: ccxt, for live Binance execution
 eqa crypto-live-run              :: DRY-RUN: orders to the crypto core (trend-managed BTC)
 ```
 
-> Crypto verdict ([`docs/CRYPTO_FINDINGS.md`](docs/CRYPTO_FINDINGS.md)): unlike
-> equities, **trend-following beats buy-and-hold BTC** risk-adjusted (Sharpe 1.14 vs
-> 1.02, −68% vs −83% drawdown), robust across MA parameters; vol-targeting and
-> alt-momentum do not. Survivorship caveats apply.
+> Crypto verdict ([`docs/CRYPTO_FINDINGS.md`](docs/CRYPTO_FINDINGS.md)): **trend-managed
+> BTC** is the core — out-of-sample it ~ties hold-BTC risk-adjusted while halving the
+> drawdown (drawdown control, not free return). **Funding carry** is a structural
+> ~10%/yr delta-neutral yield (decaying). Vol-targeting / long-short / alt-momentum
+> do not beat hold-BTC. **What to actually run:** [`docs/STRATEGY.md`](docs/STRATEGY.md).
 
 ### Run it daily (orchestration)
 
@@ -151,18 +153,26 @@ secrets (API keys, `DATABASE_URL`) live in `.env` (gitignored).
   (non-overlapping IC, block stability, purged walk-forward), performance metrics.
 - **Phase 2 — cross-sectional factors** ✅: S&P 500 universe, per-date cross-sectional
   IC, price (momentum/low-vol) + value/quality factors, **point-in-time index
-  membership + fundamentals** (survivorship/look-ahead correct).
-- **Phases 3–4** (risk/execution): paper-trading loop + risk-off gate live; IBKR pending.
+  membership + fundamentals** (survivorship/look-ahead correct); total-return checks.
+- **Phase 3 — execution / risk / monitoring** ✅: SPY core, vol-target overlay,
+  paper loop + risk-off gate, monitor, dashboard, IBKR adapter (dry-run).
+- **Crypto** ✅: 24/7 asset class, trend / vol-target / alt-momentum / funding-carry
+  research, Binance execution adapter (dry-run). See `docs/CRYPTO_FINDINGS.md`.
 
 ### Research verdict (the honest result)
 
-Across momentum, low-vol, value, quality and a sector-neutral composite, **no factor
-beats the cap-weighted index (SPY) with statistical confidence once survivorship is
-removed.** Survivorship bias was the dominant driver of the apparent edge: it inflated
-the point-in-time equal-weight basket from 1.78x to 3.59x. The edge is **cap-weight
-market exposure + diversification + discipline** — so the core defaults to tracking
-SPY (`config.core_strategy`). Full write-up in
-[`docs/PHASE1_FINDINGS.md`](docs/PHASE1_FINDINGS.md); rules in
+**Equities:** across momentum, low-vol, value, quality and a sector-neutral composite,
+**no factor beats SPY** once survivorship and dividends are handled honestly
+(survivorship alone inflated the point-in-time equal-weight basket from 1.78x to
+3.59x). Core = hold SPY; optional vol-target overlay for drawdown control.
+
+**Crypto:** beating hold-BTC on return is just as hard; the modest real edges are
+**trend-managed BTC** (drawdown control) and **funding carry** (structural ~10%/yr,
+decaying). Everything directional fails.
+
+**What to actually run:** [`docs/STRATEGY.md`](docs/STRATEGY.md). Evidence:
+[`docs/PHASE1_FINDINGS.md`](docs/PHASE1_FINDINGS.md),
+[`docs/CRYPTO_FINDINGS.md`](docs/CRYPTO_FINDINGS.md); rules:
 [`docs/METHODOLOGY.md`](docs/METHODOLOGY.md).
 
 ## Dev
