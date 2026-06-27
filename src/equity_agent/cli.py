@@ -638,6 +638,31 @@ def backtest_crypto_cmd() -> None:
     typer.echo(df.to_string(index=False))
 
 
+@app.command("crypto-funding")
+def crypto_funding_cmd(
+    symbols: str = typer.Option("BTCUSDT,ETHUSDT", help="comma-separated Binance perp symbols"),
+    start: str = typer.Option("2019-09-01", help="history start (ISO)"),
+) -> None:
+    """Delta-neutral funding-carry yield from Binance perps (free). Structural, not alpha."""
+    setup_logging()
+    from .data.funding import carry_summary, fetch_funding
+
+    typer.echo("\n=== Funding carry (short perp + long spot, annualized) ===")
+    typer.echo(f"{'symbol':<10}{'gross%':>9}{'net%':>8}{'pos%':>7}{'n':>8}")
+    for sym in [s.strip() for s in symbols.split(",") if s.strip()]:
+        f = fetch_funding(sym, start=start)
+        if f.empty:
+            typer.echo(f"{sym:<10}  no data")
+            continue
+        s = carry_summary(f)
+        typer.echo(
+            f"{sym:<10}{s['ann_carry_gross'] * 100:>9.1f}{s['ann_carry_net'] * 100:>8.1f}"
+            f"{s['pct_positive'] * 100:>7.0f}{s['n']:>8}"
+        )
+    typer.echo("Caveat: positive ~85% of the time and every year historically, but DECAYING")
+    typer.echo("(2021 ~31%/yr -> 2025-26 ~1-5%/yr) and carries operational/basis risk.")
+
+
 @app.command("live-run")
 def live_run_cmd(
     execute: bool = typer.Option(

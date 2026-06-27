@@ -21,13 +21,16 @@ from ..config import load_config
 from ..research.factor_eval import momentum_factor, month_end_dates
 from .engine import BacktestConfig, run_backtest
 from .factor_portfolio import quantile_long_weights
-from .metrics import return_summary
+from .metrics import return_summary, sharpe_ratio
 from .overlay_backtest import vol_target_index_weights
 from .strategy import single_asset
 
 CRYPTO_PERIODS = 365  # 24/7 market
 CRYPTO_FEE_BPS = 10.0  # taker fee
 CRYPTO_SLIP_BPS = 20.0  # wider spreads than equities
+
+
+TREND_CANDIDATES = [(10, 50), (10, 100), (20, 100), (30, 100), (50, 200)]
 
 
 def trend_weights(
@@ -37,6 +40,49 @@ def trend_weights(
     px = close[symbol]
     sig = (px.rolling(fast).mean() > px.rolling(slow).mean()).astype(float)
     return pd.DataFrame({symbol: sig})
+
+
+def trend_long_short_weights(
+    close: pd.DataFrame, symbol: str, *, fast: int = 20, slow: int = 100
+) -> pd.DataFrame:
+    """Long/short MA-cross: +1 when fast SMA > slow SMA, else -1 (short via perps)."""
+    px = close[symbol]
+    up = px.rolling(fast).mean() > px.rolling(slow).mean()
+    return pd.DataFrame({symbol: up.map({True: 1.0, False: -1.0})})
+
+
+def _trend_sharpe(px: pd.Series, fast: int, slow: int) -> float:
+    """In-sample Sharpe of a long/flat trend signal (next-day execution proxy)."""
+    sig = (px.rolling(fast).mean() > px.rolling(slow).mean()).astype(float)
+    strat = sig.shift(1) * px.pct_change()
+    return sharpe_ratio(strat.dropna(), periods_per_year=CRYPTO_PERIODS)
+
+
+def walkforward_trend_weights(
+    close: pd.DataFrame,
+    symbol: str,
+    *,
+    candidates: list[tuple[int, int]] | None = None,
+    min_train_days: int = 365,
+) -> pd.DataFrame:
+    """Anchored walk-forward: each year trade the MA params that were best *so far*.
+
+    No look-ahead in parameter choice — params for year Y are picked only on data
+    before Y. Years without enough training history stay flat (cash).
+    """
+    cands = candidates or TREND_CANDIDATES
+    px = close[symbol]
+    years = pd.DatetimeIndex(pd.to_datetime(px.index)).year
+    weights = pd.Series(0.0, index=px.index)
+    for y in sorted(set(years)):
+        train = years < y
+        if train.sum() < min_train_days:
+            continue
+        px_train = px[train]
+        best = max(cands, key=lambda fs: _trend_sharpe(px_train, fs[0], fs[1]))
+        sig = (px.rolling(best[0]).mean() > px.rolling(best[1]).mean()).astype(float)
+        weights[years == y] = sig[years == y].to_numpy()
+    return pd.DataFrame({symbol: weights})
 
 
 def run_crypto_comparison(
