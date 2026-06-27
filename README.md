@@ -104,6 +104,9 @@ Crypto (separate asset class, 365-day year, bar = hold BTC):
 eqa ingest-crypto                :: daily bars for the crypto universe (yfinance)
 eqa backtest-crypto              :: hold-BTC vs trend / vol-target / alt-momentum
 eqa backtest-overlay --crypto    :: vol-target overlay on BTC across target vols
+eqa crypto-funding               :: delta-neutral funding-carry yield (Binance, free)
+pip install -e ".[crypto-exec]"  :: ccxt, for live Binance execution
+eqa crypto-live-run              :: DRY-RUN: orders to the crypto core (trend-managed BTC)
 ```
 
 > Crypto verdict ([`docs/CRYPTO_FINDINGS.md`](docs/CRYPTO_FINDINGS.md)): unlike

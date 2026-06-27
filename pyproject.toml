@@ -37,6 +37,9 @@ kronos = [
 ibkr = [
     "ib_insync>=0.9.86",  # live/paper execution against TWS / IB Gateway (Phase 4)
 ]
+crypto-exec = [
+    "ccxt>=4.0",  # Binance spot execution (Phase 4, crypto)
+]
 dev = [
     "pytest>=8.0",
     "ruff>=0.5",

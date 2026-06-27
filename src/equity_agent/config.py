@@ -64,6 +64,10 @@ class Settings(BaseSettings):
     # Macro (Phase 1)
     fred_api_key: str | None = None
 
+    # Crypto execution (Phase 4) — Binance spot via ccxt. Read-only research needs no key.
+    binance_api_key: str | None = None
+    binance_secret: str | None = None
+
     # Monitoring (Phase 0+)
     sentry_dsn: str | None = None
 

@@ -13,59 +13,13 @@ deliberate, user-initiated action against the user's own TWS/Gateway.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
 from typing import Any
 
+from .orders import PlannedOrder, plan_orders  # re-exported for back-compat
+
+__all__ = ["IBKRBroker", "PlannedOrder", "plan_orders"]
+
 logger = logging.getLogger("equity_agent")
-
-
-@dataclass
-class PlannedOrder:
-    symbol: str
-    side: str  # BUY | SELL
-    qty: float
-    est_price: float
-    est_notional: float
-
-
-def plan_orders(
-    target_weights: dict[str, float],
-    prices: dict[str, float],
-    equity: float,
-    current_positions: dict[str, float],
-    *,
-    min_notional: float = 1.0,
-    whole_shares: bool = True,
-) -> list[PlannedOrder]:
-    """Diff current positions to target weights -> the orders that close the gap.
-
-    Pure and deterministic (no IB dependency): ``desired_qty = equity * weight /
-    price``, rounded to whole shares for US stocks, minus the current position.
-    Orders below ``min_notional`` are skipped (no dust trades). This is the same
-    intent as ``paper_broker.rebalance`` but emits orders instead of mutating a DB.
-    """
-    orders: list[PlannedOrder] = []
-    for sym in sorted(set(target_weights) | set(current_positions)):
-        price = prices.get(sym)
-        if price is None or price <= 0:
-            continue
-        desired = equity * target_weights.get(sym, 0.0) / price
-        if whole_shares:
-            desired = float(int(desired))  # IBKR stocks: whole shares by default
-        delta = desired - current_positions.get(sym, 0.0)
-        notional = abs(delta) * price
-        if notional < min_notional:
-            continue
-        orders.append(
-            PlannedOrder(
-                symbol=sym,
-                side="BUY" if delta > 0 else "SELL",
-                qty=abs(delta),
-                est_price=price,
-                est_notional=notional,
-            )
-        )
-    return orders
 
 
 class IBKRBroker:
