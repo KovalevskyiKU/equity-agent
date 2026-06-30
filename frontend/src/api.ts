@@ -31,6 +31,14 @@ export interface Position {
   market_value: number
   unrealized_pnl: number
 }
+export interface OpenOrder {
+  id: number
+  symbol: string
+  side: string
+  qty: number
+  limit_price: number
+  created_at: string
+}
 export interface Portfolio {
   has_account: boolean
   cash: number
@@ -38,6 +46,7 @@ export interface Portfolio {
   positions: Position[]
   monitor: Record<string, number>
   equity_curve: { time: string; equity: number }[]
+  open_orders?: OpenOrder[]
 }
 export interface Trade {
   time: string
@@ -82,6 +91,18 @@ export interface OrderTransmitted {
   qty: number
 }
 
+// order_type:"limit" (paper only): a resting limit order was created.
+export interface OrderResting {
+  order_id: number
+  status: 'open'
+  symbol: string
+  side: string
+  qty: number
+  limit_price: number
+}
+
+export type OrderType = 'market' | 'limit'
+
 export interface OrderBody {
   symbol: string
   side: string
@@ -89,12 +110,18 @@ export interface OrderBody {
   venue?: Venue
   price?: number
   confirm?: boolean
+  order_type?: OrderType
+  limit_price?: number
 }
 
-export type OrderResponse = OrderResult | OrderPreview | OrderTransmitted
+export type OrderResponse = OrderResult | OrderPreview | OrderTransmitted | OrderResting
 
 export function isPreview(r: OrderResponse): r is OrderPreview {
   return (r as OrderPreview).preview === true
+}
+
+export function isResting(r: OrderResponse): r is OrderResting {
+  return (r as OrderResting).status === 'open'
 }
 
 async function get<T>(url: string): Promise<T> {
@@ -119,19 +146,73 @@ export const api = {
     if (!r.ok) throw new Error(data.detail ?? `order failed (${r.status})`)
     return data as OrderResponse
   },
+  getOpenOrders: () => get<OpenOrder[]>('/api/orders/open'),
+  cancelOrder: async (id: number): Promise<{ id: number; status: string }> => {
+    const r = await fetch(`/api/orders/${id}`, { method: 'DELETE' })
+    const data = await r.json()
+    if (!r.ok) throw new Error(data.detail ?? `cancel failed (${r.status})`)
+    return data as { id: number; status: string }
+  },
 }
 
 // Live portfolio updates over the /ws/portfolio WebSocket. Pushes the same
-// shape as GET /api/portfolio (~every 3s). Returns the socket for cleanup.
-export function connectPortfolioWS(onMessage: (p: Portfolio) => void): WebSocket {
+// shape as GET /api/portfolio (~every 3s). Auto-reconnects on close/error with
+// a small backoff. Returns a cleanup function that tears down the socket and
+// cancels any pending reconnect (no leaked sockets on unmount).
+export function connectPortfolioWS(
+  onMessage: (p: Portfolio) => void,
+  backoffMs = 2000,
+): () => void {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws'
-  const ws = new WebSocket(`${proto}://${location.host}/ws/portfolio`)
-  ws.onmessage = (ev) => {
-    try {
-      onMessage(JSON.parse(ev.data) as Portfolio)
-    } catch {
-      // ignore malformed frames
+  const url = `${proto}://${location.host}/ws/portfolio`
+  let ws: WebSocket | null = null
+  let timer: ReturnType<typeof setTimeout> | null = null
+  let closed = false
+
+  const connect = () => {
+    if (closed) return
+    ws = new WebSocket(url)
+    ws.onmessage = (ev) => {
+      try {
+        onMessage(JSON.parse(ev.data) as Portfolio)
+      } catch {
+        // ignore malformed frames
+      }
+    }
+    const scheduleReconnect = () => {
+      if (closed || timer) return
+      timer = setTimeout(() => {
+        timer = null
+        connect()
+      }, backoffMs)
+    }
+    ws.onclose = scheduleReconnect
+    ws.onerror = () => {
+      // onerror is typically followed by onclose, but close defensively so a
+      // socket stuck in a failed state still triggers a reconnect.
+      try {
+        ws?.close()
+      } catch {
+        // already closing/closed
+      }
+      scheduleReconnect()
     }
   }
-  return ws
+
+  connect()
+
+  return () => {
+    closed = true
+    if (timer) {
+      clearTimeout(timer)
+      timer = null
+    }
+    if (ws) {
+      ws.onclose = null
+      ws.onerror = null
+      ws.onmessage = null
+      ws.close()
+      ws = null
+    }
+  }
 }

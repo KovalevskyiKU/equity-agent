@@ -4,6 +4,7 @@ import type { Bar, Instrument, Portfolio, Signals, Trade } from './api'
 import { api, connectPortfolioWS } from './api'
 import { Chart } from './components/Chart'
 import { EquityCurve } from './components/EquityCurve'
+import { OpenOrders } from './components/OpenOrders'
 import { OrderTicket } from './components/OrderTicket'
 import { PortfolioView } from './components/Portfolio'
 import { SignalPanel } from './components/SignalPanel'
@@ -37,10 +38,10 @@ export default function App() {
     refresh()
   }, [refresh])
 
-  // Live portfolio updates over WebSocket (~every 3s).
+  // Live portfolio updates over WebSocket (~every 3s, auto-reconnecting).
   useEffect(() => {
-    const ws = connectPortfolioWS(setPortfolio)
-    return () => ws.close()
+    const disconnect = connectPortfolioWS(setPortfolio)
+    return disconnect
   }, [])
 
   return (
@@ -68,6 +69,7 @@ export default function App() {
         </main>
         <aside className="right">
           <OrderTicket symbol={symbol} onDone={refresh} />
+          <OpenOrders orders={portfolio?.open_orders ?? null} onDone={refresh} />
           <PortfolioView p={portfolio} />
           <EquityCurve data={portfolio?.equity_curve ?? []} />
           <Trades trades={trades} />

@@ -13,7 +13,11 @@ Notable changes, newest first. Dates are when the work landed on `main`.
   `confirm:true` transmits); nothing live is sent without confirmation.
 - **React/Vite cockpit** (`frontend/`): watchlist (equities+crypto), TradingView
   candlestick chart with SMA overlays, signal bar, live portfolio + equity curve,
-  order ticket with venue selector, recent trades. `npm run dev` ↔ `eqa serve`.
+  order ticket with venue selector, open-orders panel, recent trades.
+- **Limit orders**: paper resting limit orders (`PendingOrder`) that fill when the
+  last price crosses the limit; open-orders list + cancel.
+- **Single-command deploy**: FastAPI serves the built cockpit at one port
+  (`eqa serve`); Dockerfile + docker-compose for a one-container run.
 
 ## 2026-06 — Crypto (separate asset class)
 

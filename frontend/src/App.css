@@ -206,6 +206,53 @@
   color: #8b949e;
 }
 
+/* order-type toggle (Market / Limit) */
+.ordertype-toggle {
+  display: flex;
+  gap: 6px;
+  margin: 4px 0 8px;
+}
+.ordertype-btn {
+  flex: 1;
+  background: #0b0e14;
+  border: 1px solid #1b2230;
+  color: #8b949e;
+  border-radius: 4px;
+  padding: 6px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.ordertype-btn.active {
+  background: #1f6feb22;
+  border-color: #1f6feb55;
+  color: #58a6ff;
+}
+.ordertype-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* open-orders cancel button */
+.order-cancel {
+  background: #30363d;
+  border: 1px solid #1b2230;
+  color: #c9d1d9;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.order-cancel:hover:not(:disabled) {
+  background: #b3403b;
+  border-color: #b3403b;
+  color: #fff;
+}
+.order-cancel:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* venue selector */
 .venue-select {
   width: 100%;
