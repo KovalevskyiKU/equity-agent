@@ -83,3 +83,18 @@ class IBKRBroker:
             self._ib.placeOrder(contract, MarketOrder(o.side, o.qty))
             logger.info("IBKR order transmitted: %s %s %g", o.side, o.symbol, o.qty)
         return orders
+
+    def place_order(
+        self, symbol: str, side: str, qty: float, *, execute: bool = False
+    ) -> PlannedOrder:
+        """Place a single market order. Transmits only if ``execute`` (else a no-op plan)."""
+        order = PlannedOrder(symbol, side.upper(), qty, 0.0, 0.0)
+        if not execute:
+            return order
+        from ib_insync import MarketOrder, Stock  # lazy
+
+        contract = Stock(symbol, "SMART", "USD")
+        self._ib.qualifyContracts(contract)
+        self._ib.placeOrder(contract, MarketOrder(order.side, qty))
+        logger.info("IBKR order transmitted: %s %s %g", order.side, symbol, qty)
+        return order

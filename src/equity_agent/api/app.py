@@ -7,11 +7,12 @@ endpoint. Orders default to the **paper** broker; live venues require an explici
 
 from __future__ import annotations
 
+import asyncio
 from typing import cast
 
 import numpy as np
 import pandas as pd
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -33,10 +34,48 @@ def _is_crypto(symbol: str) -> bool:
 
 class OrderRequest(BaseModel):
     symbol: str
-    side: str  # BUY | SELL (validated in place_order)
+    side: str  # BUY | SELL (validated downstream)
     qty: float = Field(gt=0)
     venue: str = "paper"  # paper | ibkr | binance
     price: float | None = None  # optional override; default = latest close
+    confirm: bool = False  # live venues require an explicit confirm (two-step)
+
+
+def build_portfolio() -> dict[str, object]:
+    """Paper account snapshot: cash, positions marked to last close, monitor, curve.
+
+    Module-level so both GET /api/portfolio and the WebSocket pusher reuse it.
+    """
+    from ..backtest.panels import load_price_panels
+    from ..dashboard.data import paper_overview
+    from ..monitoring import monitor_summary
+    from ..signals.feature_store import load_bars
+
+    ov = paper_overview()
+    positions = []
+    for _, p in cast(pd.DataFrame, ov["positions"]).iterrows():
+        bars_df = load_bars(p["symbol"])
+        last = float(bars_df["close"].iloc[-1]) if not bars_df.empty else float(p["avg_price"])
+        positions.append({
+            "symbol": p["symbol"], "qty": float(p["qty"]),
+            "avg_price": float(p["avg_price"]), "last": last,
+            "market_value": last * float(p["qty"]),
+            "unrealized_pnl": (last - float(p["avg_price"])) * float(p["qty"]),
+        })
+    cfg = load_config()
+    _, close_b = load_price_panels([cfg.benchmark])
+    spy_close = close_b[cfg.benchmark] if not close_b.empty else None
+    curve = cast(pd.DataFrame, ov["equity_curve"])
+    return {
+        "has_account": ov["has_account"],
+        "cash": float(ov["cash"]),  # type: ignore[arg-type]
+        "starting_cash": float(ov["starting_cash"]),  # type: ignore[arg-type]
+        "positions": positions,
+        "monitor": monitor_summary(curve, spy_close),
+        "equity_curve": [
+            {"time": str(r["ts"]), "equity": float(r["equity"])} for _, r in curve.iterrows()
+        ],
+    }
 
 
 def create_app() -> FastAPI:
@@ -112,39 +151,7 @@ def create_app() -> FastAPI:
 
     @app.get("/api/portfolio")
     def portfolio() -> dict[str, object]:
-        from ..backtest.panels import load_price_panels
-        from ..dashboard.data import paper_overview
-        from ..monitoring import monitor_summary
-        from ..signals.feature_store import load_bars
-
-        ov = paper_overview()
-        positions = []
-        for _, p in cast(pd.DataFrame, ov["positions"]).iterrows():
-            bars_df = load_bars(p["symbol"])
-            last = float(bars_df["close"].iloc[-1]) if not bars_df.empty else float(p["avg_price"])
-            mkt = last * float(p["qty"])
-            upnl = (last - float(p["avg_price"])) * float(p["qty"])
-            positions.append({
-                "symbol": p["symbol"], "qty": float(p["qty"]),
-                "avg_price": float(p["avg_price"]), "last": last,
-                "market_value": mkt, "unrealized_pnl": upnl,
-            })
-        cfg = load_config()
-        _, close_b = load_price_panels([cfg.benchmark])
-        spy_close = close_b[cfg.benchmark] if not close_b.empty else None
-        curve = cast(pd.DataFrame, ov["equity_curve"])
-        mon = monitor_summary(curve, spy_close)
-        return {
-            "has_account": ov["has_account"],
-            "cash": float(ov["cash"]),  # type: ignore[arg-type]
-            "starting_cash": float(ov["starting_cash"]),  # type: ignore[arg-type]
-            "positions": positions,
-            "monitor": mon,
-            "equity_curve": [
-                {"time": str(r["ts"]), "equity": float(r["equity"])}
-                for _, r in curve.iterrows()
-            ],
-        }
+        return build_portfolio()
 
     @app.get("/api/trades")
     def trades(limit: int = 50) -> list[dict[str, object]]:
@@ -162,11 +169,6 @@ def create_app() -> FastAPI:
 
     @app.post("/api/orders")
     def create_order(req: OrderRequest) -> dict[str, object]:
-        if req.venue != "paper":
-            raise HTTPException(
-                501, f"venue '{req.venue}' not enabled yet — live trading lands in a later phase"
-            )
-        from ..execution.paper_broker import place_order
         from ..signals.feature_store import load_bars
 
         price = req.price
@@ -175,10 +177,65 @@ def create_app() -> FastAPI:
             if bars_df.empty:
                 raise HTTPException(404, f"no price for {req.symbol}; pass an explicit price")
             price = float(bars_df["close"].iloc[-1])
+
+        venue = req.venue.lower()
+        if venue == "paper":
+            from ..execution.paper_broker import place_order
+
+            try:
+                return place_order(req.symbol, req.side, req.qty, price)
+            except ValueError as e:
+                raise HTTPException(400, str(e)) from e
+
+        if venue not in {"ibkr", "binance"}:
+            raise HTTPException(400, f"unknown venue '{req.venue}'")
+
+        # Live venues are two-step: first call returns a preview to confirm, second
+        # call (confirm=true) actually transmits. Nothing is sent without confirm.
+        if not req.confirm:
+            return {
+                "preview": True, "requires_confirmation": True, "venue": venue,
+                "symbol": req.symbol, "side": req.side.upper(), "qty": req.qty,
+                "est_price": price, "est_notional": req.qty * price,
+            }
+
+        from ..config import get_settings
+
+        s = get_settings()
         try:
-            return place_order(req.symbol, req.side, req.qty, price)
-        except ValueError as e:
-            raise HTTPException(400, str(e)) from e
+            if venue == "ibkr":
+                from ..execution.ibkr_broker import IBKRBroker
+
+                broker = IBKRBroker(s.ibkr_host, s.ibkr_port, s.ibkr_client_id)
+                broker.connect()
+                try:
+                    o = broker.place_order(req.symbol, req.side, req.qty, execute=True)
+                finally:
+                    broker.disconnect()
+            else:  # binance
+                from ..execution.crypto_broker import BinanceBroker
+
+                broker_c = BinanceBroker(s.binance_api_key, s.binance_secret)
+                broker_c.connect()
+                o = broker_c.place_order(req.symbol, req.side, req.qty, execute=True)
+        except Exception as e:  # noqa: BLE001 - surface connect/auth failures to the UI
+            raise HTTPException(502, f"{venue} not reachable: {e}") from e
+        return {
+            "filled": "transmitted", "venue": venue,
+            "symbol": o.symbol, "side": o.side, "qty": o.qty,
+        }
+
+    @app.websocket("/ws/portfolio")
+    async def ws_portfolio(ws: WebSocket) -> None:
+        """Push a portfolio snapshot every few seconds (live positions/P&L)."""
+        await ws.accept()
+        try:
+            while True:
+                snapshot = await asyncio.to_thread(build_portfolio)
+                await ws.send_json(snapshot)
+                await asyncio.sleep(3)
+        except WebSocketDisconnect:
+            return
 
     return app
 
