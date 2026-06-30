@@ -1,0 +1,14 @@
+# One-command run of the trading app (API + cockpit) at http://localhost:8000.
+# `data/` is mounted so the DB/parquet persist; ingest into it first (or run
+# `docker compose run --rm app eqa ingest`). Secrets come from .env (optional;
+# only needed for live venues / paid data).
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+    env_file:
+      - path: .env
+        required: false

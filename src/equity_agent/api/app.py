@@ -16,7 +16,7 @@ from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from ..config import load_config
+from ..config import PROJECT_ROOT, load_config
 from ..storage.db import init_db
 
 TRADING_DAYS_EQUITY = 252
@@ -279,6 +279,15 @@ def create_app() -> FastAPI:
                 await asyncio.sleep(3)
         except WebSocketDisconnect:
             return
+
+    # Serve the built React cockpit (if present) so `eqa serve` runs the whole app on
+    # one port. Mounted last so /api and /ws routes take precedence. Build it with
+    # `cd frontend && npm run build`.
+    dist = PROJECT_ROOT / "frontend" / "dist"
+    if dist.exists():
+        from fastapi.staticfiles import StaticFiles
+
+        app.mount("/", StaticFiles(directory=str(dist), html=True), name="frontend")
 
     return app
 

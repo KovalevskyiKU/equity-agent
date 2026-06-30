@@ -88,15 +88,31 @@ Equivalent: `eqa dashboard` or `streamlit run dashboard_app.py`.
 A real interactive trading interface (chart + signals + watchlist + order ticket +
 live portfolio), separate from the read-only Streamlit dashboard.
 
+Dev (two servers, hot reload):
+
 ```cmd
 pip install -e ".[api]"          :: fastapi + uvicorn
 eqa serve                        :: backend API at http://127.0.0.1:8000
 cd frontend && npm install && npm run dev   :: cockpit at http://localhost:5173
 ```
 
+Single command (FastAPI serves the built cockpit at http://localhost:8000):
+
+```cmd
+cd frontend && npm install && npm run build && cd ..
+eqa serve
+```
+
+Docker (one container, API + cockpit):
+
+```cmd
+docker compose up --build        :: http://localhost:8000  (mounts ./data; ingest first)
+```
+
 The cockpit talks to the API (`src/equity_agent/api/`): instruments, OHLC bars,
-per-symbol signals, portfolio/P&L, trades, and **manual orders**. Orders default to
-the **paper** broker; live venues (IBKR/Binance) are gated and land in a later phase.
+per-symbol signals, portfolio/P&L, trades, **market + limit orders**, open orders
+(cancel), and a `/ws/portfolio` WebSocket for live updates. Orders default to the
+**paper** broker; live venues (IBKR/Binance) go through a two-step confirm.
 
 Backtesting: `eqa backtest --strategy vol-target`, `eqa backtest-sweep` (rolling,
 no LLM), `eqa backtest-llm` (LLM agent), `eqa backtest-kronos` (Kronos rule).
