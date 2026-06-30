@@ -89,3 +89,13 @@ class BinanceBroker:
             self._ex.create_order(to_ccxt_symbol(o.symbol), "market", o.side.lower(), o.qty)
             logger.info("Binance order transmitted: %s %s %g", o.side, o.symbol, o.qty)
         return orders
+
+    def place_order(
+        self, symbol: str, side: str, qty: float, *, execute: bool = False
+    ) -> PlannedOrder:
+        """Place a single market order. Transmits only if ``execute`` (else a no-op plan)."""
+        order = PlannedOrder(symbol, side.upper(), qty, 0.0, 0.0)
+        if execute:
+            self._ex.create_order(to_ccxt_symbol(symbol), "market", side.lower(), qty)
+            logger.info("Binance order transmitted: %s %s %g", order.side, symbol, qty)
+        return order

@@ -2,6 +2,19 @@
 
 Notable changes, newest first. Dates are when the work landed on `main`.
 
+## 2026-07 — Trading web app (FastAPI + React cockpit)
+
+- **Backend API** (`src/equity_agent/api/`, `eqa serve`): instruments, OHLC bars,
+  per-symbol signals, portfolio/P&L, trades, manual orders, and a `/ws/portfolio`
+  WebSocket. Reuses the research/execution core.
+- **Manual paper orders** (`paper_broker.place_order`): single market fill with
+  fees/slippage, no shorting.
+- **Live orders** routed to IBKR/Binance behind a two-step confirm (preview →
+  `confirm:true` transmits); nothing live is sent without confirmation.
+- **React/Vite cockpit** (`frontend/`): watchlist (equities+crypto), TradingView
+  candlestick chart with SMA overlays, signal bar, live portfolio + equity curve,
+  order ticket with venue selector, recent trades. `npm run dev` ↔ `eqa serve`.
+
 ## 2026-06 — Crypto (separate asset class)
 
 - 24/7, 365-day calendar; 20-coin universe via yfinance; bar = **hold BTC**.

@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import './App.css'
 import type { Bar, Instrument, Portfolio, Signals, Trade } from './api'
-import { api } from './api'
+import { api, connectPortfolioWS } from './api'
 import { Chart } from './components/Chart'
+import { EquityCurve } from './components/EquityCurve'
 import { OrderTicket } from './components/OrderTicket'
 import { PortfolioView } from './components/Portfolio'
 import { SignalPanel } from './components/SignalPanel'
@@ -30,9 +31,17 @@ export default function App() {
     api.portfolio().then(setPortfolio).catch(() => {})
     api.trades().then(setTrades).catch(() => {})
   }, [])
+
+  // Fast first paint + fallback via REST.
   useEffect(() => {
     refresh()
   }, [refresh])
+
+  // Live portfolio updates over WebSocket (~every 3s).
+  useEffect(() => {
+    const ws = connectPortfolioWS(setPortfolio)
+    return () => ws.close()
+  }, [])
 
   return (
     <div className="app">
@@ -60,6 +69,7 @@ export default function App() {
         <aside className="right">
           <OrderTicket symbol={symbol} onDone={refresh} />
           <PortfolioView p={portfolio} />
+          <EquityCurve data={portfolio?.equity_curve ?? []} />
           <Trades trades={trades} />
         </aside>
       </div>

@@ -37,10 +37,40 @@ def test_oversell_is_rejected(temp_db: None) -> None:
     assert r.status_code == 400  # cannot short on paper
 
 
-def test_live_venue_not_enabled(temp_db: None) -> None:
+def test_live_order_requires_confirmation_first(temp_db: None) -> None:
     c = TestClient(create_app())
     r = c.post(
         "/api/orders",
-        json={"symbol": "AAA", "side": "buy", "qty": 1, "venue": "binance", "price": 10.0},
+        json={"symbol": "BTC-USD", "side": "buy", "qty": 1, "venue": "binance", "price": 50000.0},
     )
-    assert r.status_code == 501
+    assert r.status_code == 200
+    body = r.json()
+    assert body["requires_confirmation"] is True and body["est_notional"] == 50000.0
+
+
+def test_live_order_confirm_without_keys_errors(temp_db: None) -> None:
+    c = TestClient(create_app())
+    r = c.post(
+        "/api/orders",
+        json={
+            "symbol": "BTC-USD", "side": "buy", "qty": 1, "venue": "binance",
+            "price": 50000.0, "confirm": True,
+        },
+    )
+    assert r.status_code == 502  # ccxt/keys not available -> not reachable
+
+
+def test_unknown_venue_rejected(temp_db: None) -> None:
+    c = TestClient(create_app())
+    r = c.post(
+        "/api/orders",
+        json={"symbol": "AAA", "side": "buy", "qty": 1, "venue": "lol", "price": 10.0},
+    )
+    assert r.status_code == 400
+
+
+def test_ws_portfolio_pushes_snapshot(temp_db: None) -> None:
+    c = TestClient(create_app())
+    with c.websocket_connect("/ws/portfolio") as ws:
+        msg = ws.receive_json()
+        assert "positions" in msg and "cash" in msg and "monitor" in msg
