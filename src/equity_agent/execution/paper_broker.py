@@ -14,7 +14,7 @@ from datetime import UTC, datetime
 from sqlalchemy import delete, select
 
 from ..storage.db import session_scope
-from ..storage.models import Account, EquitySnapshot, Position, Trade
+from ..storage.models import Account, EquitySnapshot, PendingOrder, Position, Trade
 
 logger = logging.getLogger("equity_agent")
 
@@ -191,3 +191,83 @@ def place_order(
             "filled": "ok", "symbol": symbol, "side": side, "qty": qty,
             "exec_price": exec_price, "fee": fee, "cash": acc.cash, "equity": equity,
         }
+
+
+def place_limit_order(
+    symbol: str, side: str, qty: float, limit_price: float, now: datetime | None = None
+) -> dict[str, object]:
+    """Create a resting limit order (paper). Fills later when price crosses the limit."""
+    side = side.upper()
+    if side not in {"BUY", "SELL"} or qty <= 0 or limit_price <= 0:
+        raise ValueError("side must be BUY/SELL, qty>0, limit_price>0")
+    with session_scope() as s:
+        order = PendingOrder(
+            symbol=symbol, side=side, qty=qty, limit_price=limit_price,
+            status="open", created_at=now or datetime.now(UTC),
+        )
+        s.add(order)
+        s.flush()
+        return {
+            "order_id": order.id, "status": "open", "symbol": symbol,
+            "side": side, "qty": qty, "limit_price": limit_price,
+        }
+
+
+def get_open_orders() -> list[dict[str, object]]:
+    """Open (resting) limit orders, newest first."""
+    with session_scope() as s:
+        stmt = select(PendingOrder).where(PendingOrder.status == "open")
+        rows = s.scalars(stmt.order_by(PendingOrder.id.desc())).all()
+        return [
+            {
+                "id": o.id, "symbol": o.symbol, "side": o.side, "qty": o.qty,
+                "limit_price": o.limit_price, "created_at": str(o.created_at),
+            }
+            for o in rows
+        ]
+
+
+def cancel_order(order_id: int) -> dict[str, object]:
+    """Cancel an open limit order."""
+    with session_scope() as s:
+        o = s.get(PendingOrder, order_id)
+        if o is None or o.status != "open":
+            raise ValueError(f"order {order_id} not open")
+        o.status = "cancelled"
+        return {"id": order_id, "status": "cancelled"}
+
+
+def check_pending_fills(prices: dict[str, float], now: datetime | None = None) -> int:
+    """Fill open limit orders whose limit is crossed by ``prices``. Returns #filled.
+
+    BUY fills when price <= limit; SELL fills when price >= limit. Fills at the limit
+    price (no slippage). An order that can't fill (e.g. oversell) is cancelled.
+    """
+    now = now or datetime.now(UTC)
+    with session_scope() as s:
+        opens = s.scalars(select(PendingOrder).where(PendingOrder.status == "open")).all()
+        candidates = [
+            (o.id, o.symbol, o.side, o.qty, o.limit_price)
+            for o in opens
+            if o.symbol in prices
+            and (
+                (o.side == "BUY" and prices[o.symbol] <= o.limit_price)
+                or (o.side == "SELL" and prices[o.symbol] >= o.limit_price)
+            )
+        ]
+
+    filled = 0
+    for oid, symbol, side, qty, limit_price in candidates:
+        try:
+            place_order(symbol, side, qty, limit_price, slippage_bps=0.0, now=now)
+            status, fill_price = "filled", limit_price
+            filled += 1
+        except ValueError:
+            status, fill_price = "cancelled", None
+        with session_scope() as s2:
+            o = s2.get(PendingOrder, oid)
+            if o is not None and o.status == "open":
+                o.status = status
+                o.filled_at = now
+                o.fill_price = fill_price
+    return filled

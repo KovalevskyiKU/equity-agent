@@ -130,6 +130,22 @@ class EquitySnapshot(Base):
     equity: Mapped[float] = mapped_column(Float)
 
 
+class PendingOrder(Base):
+    """A resting limit order (paper). Fills when the last price crosses the limit."""
+
+    __tablename__ = "pending_orders"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    symbol: Mapped[str] = mapped_column(String(20), index=True)
+    side: Mapped[str] = mapped_column(String(10))  # BUY|SELL
+    qty: Mapped[float] = mapped_column(Float)
+    limit_price: Mapped[float] = mapped_column(Float)
+    status: Mapped[str] = mapped_column(String(12), default="open")  # open|filled|cancelled
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    filled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    fill_price: Mapped[float | None] = mapped_column(Float)
+
+
 class Account(Base):
     """Single-row paper-trading cash account (id always 1)."""
 

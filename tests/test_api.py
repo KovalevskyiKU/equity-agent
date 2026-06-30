@@ -69,6 +69,27 @@ def test_unknown_venue_rejected(temp_db: None) -> None:
     assert r.status_code == 400
 
 
+def test_limit_order_lifecycle(temp_db: None) -> None:
+    c = TestClient(create_app())
+    r = c.post(
+        "/api/orders",
+        json={"symbol": "AAA", "side": "buy", "qty": 1, "order_type": "limit", "limit_price": 50.0},
+    )
+    assert r.status_code == 200 and r.json()["status"] == "open"
+    oid = r.json()["order_id"]
+    assert any(o["id"] == oid for o in c.get("/api/orders/open").json())
+    assert c.delete(f"/api/orders/{oid}").status_code == 200
+    assert c.get("/api/orders/open").json() == []
+
+
+def test_limit_order_requires_price(temp_db: None) -> None:
+    c = TestClient(create_app())
+    r = c.post(
+        "/api/orders", json={"symbol": "AAA", "side": "buy", "qty": 1, "order_type": "limit"}
+    )
+    assert r.status_code == 400
+
+
 def test_ws_portfolio_pushes_snapshot(temp_db: None) -> None:
     c = TestClient(create_app())
     with c.websocket_connect("/ws/portfolio") as ws:

@@ -37,7 +37,9 @@ class OrderRequest(BaseModel):
     side: str  # BUY | SELL (validated downstream)
     qty: float = Field(gt=0)
     venue: str = "paper"  # paper | ibkr | binance
-    price: float | None = None  # optional override; default = latest close
+    order_type: str = "market"  # market | limit (limit = paper resting order)
+    limit_price: float | None = None  # required for order_type=limit
+    price: float | None = None  # optional market-price override; default = latest close
     confirm: bool = False  # live venues require an explicit confirm (two-step)
 
 
@@ -48,8 +50,20 @@ def build_portfolio() -> dict[str, object]:
     """
     from ..backtest.panels import load_price_panels
     from ..dashboard.data import paper_overview
+    from ..execution.paper_broker import check_pending_fills, get_open_orders
     from ..monitoring import monitor_summary
     from ..signals.feature_store import load_bars
+
+    # Fill any resting limit orders crossed by the latest price, then snapshot.
+    open_orders = get_open_orders()
+    if open_orders:
+        fill_prices: dict[str, float] = {}
+        for o in open_orders:
+            b = load_bars(str(o["symbol"]))
+            if not b.empty:
+                fill_prices[str(o["symbol"])] = float(b["close"].iloc[-1])
+        if fill_prices and check_pending_fills(fill_prices):
+            open_orders = get_open_orders()
 
     ov = paper_overview()
     positions = []
@@ -71,6 +85,7 @@ def build_portfolio() -> dict[str, object]:
         "cash": float(ov["cash"]),  # type: ignore[arg-type]
         "starting_cash": float(ov["starting_cash"]),  # type: ignore[arg-type]
         "positions": positions,
+        "open_orders": open_orders,
         "monitor": monitor_summary(curve, spy_close),
         "equity_curve": [
             {"time": str(r["ts"]), "equity": float(r["equity"])} for _, r in curve.iterrows()
@@ -167,9 +182,37 @@ def create_app() -> FastAPI:
             })
         return out[:limit]
 
+    @app.get("/api/orders/open")
+    def open_orders() -> list[dict[str, object]]:
+        from ..execution.paper_broker import get_open_orders
+
+        return get_open_orders()
+
+    @app.delete("/api/orders/{order_id}")
+    def cancel(order_id: int) -> dict[str, object]:
+        from ..execution.paper_broker import cancel_order
+
+        try:
+            return cancel_order(order_id)
+        except ValueError as e:
+            raise HTTPException(404, str(e)) from e
+
     @app.post("/api/orders")
     def create_order(req: OrderRequest) -> dict[str, object]:
         from ..signals.feature_store import load_bars
+
+        # Paper resting limit order.
+        if req.order_type.lower() == "limit":
+            if req.venue.lower() != "paper":
+                raise HTTPException(400, "limit orders are paper-only for now")
+            if req.limit_price is None or req.limit_price <= 0:
+                raise HTTPException(400, "limit_price required for a limit order")
+            from ..execution.paper_broker import place_limit_order
+
+            try:
+                return place_limit_order(req.symbol, req.side, req.qty, req.limit_price)
+            except ValueError as e:
+                raise HTTPException(400, str(e)) from e
 
         price = req.price
         if price is None:

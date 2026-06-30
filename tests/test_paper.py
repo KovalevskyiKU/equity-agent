@@ -3,7 +3,11 @@ import pandas as pd
 import pytest
 
 from equity_agent.execution.paper_broker import (
+    cancel_order,
+    check_pending_fills,
+    get_open_orders,
     get_positions,
+    place_limit_order,
     place_order,
     rebalance,
     reset_account,
@@ -87,3 +91,24 @@ def test_place_order_rejects_oversell(temp_db: None) -> None:
     place_order("AAA", "BUY", 2.0, 10.0, fee_bps=0, slippage_bps=0)
     with pytest.raises(ValueError):
         place_order("AAA", "SELL", 5.0, 10.0)  # no shorting on paper
+
+
+def test_limit_order_fills_on_cross(temp_db: None) -> None:
+    reset_account(10000.0)
+    r = place_limit_order("AAA", "BUY", 2.0, 100.0)
+    assert r["status"] == "open"
+    assert len(get_open_orders()) == 1
+    assert check_pending_fills({"AAA": 105.0}) == 0  # above limit -> no fill
+    assert len(get_open_orders()) == 1
+    assert check_pending_fills({"AAA": 98.0}) == 1  # at/below limit -> fill
+    assert get_open_orders() == []
+    assert abs(get_positions()["AAA"] - 2.0) < 1e-9
+
+
+def test_cancel_open_order(temp_db: None) -> None:
+    reset_account(10000.0)
+    r = place_limit_order("BBB", "BUY", 1.0, 50.0)
+    cancel_order(int(r["order_id"]))  # type: ignore[arg-type]
+    assert get_open_orders() == []
+    with pytest.raises(ValueError):
+        cancel_order(int(r["order_id"]))  # type: ignore[arg-type]  # already cancelled
