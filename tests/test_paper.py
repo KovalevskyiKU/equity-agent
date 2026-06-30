@@ -1,7 +1,13 @@
 import numpy as np
 import pandas as pd
+import pytest
 
-from equity_agent.execution.paper_broker import get_positions, rebalance, reset_account
+from equity_agent.execution.paper_broker import (
+    get_positions,
+    place_order,
+    rebalance,
+    reset_account,
+)
 from equity_agent.execution.runner import compute_core_target
 
 
@@ -62,3 +68,22 @@ def test_core_target_exposure_scales_toward_cash() -> None:
     close_b = pd.DataFrame({"SPY": [400.0, 410.0]})
     target, _ = compute_core_target("spy", pd.DataFrame(), close_b, "SPY", exposure=0.5)
     assert target == {"SPY": 0.5}  # half invested, half cash
+
+
+def test_place_order_buy_then_sell(temp_db: None) -> None:
+    reset_account(1000.0)
+    r = place_order("AAA", "BUY", 5.0, 10.0, fee_bps=0, slippage_bps=0)
+    assert r["filled"] == "ok"
+    assert abs(get_positions()["AAA"] - 5.0) < 1e-9
+    assert abs(float(r["cash"]) - 950.0) < 1e-6  # 1000 - 5*10
+
+    s = place_order("AAA", "SELL", 5.0, 12.0, fee_bps=0, slippage_bps=0)
+    assert "AAA" not in get_positions()
+    assert abs(float(s["cash"]) - 1010.0) < 1e-6  # 950 + 5*12
+
+
+def test_place_order_rejects_oversell(temp_db: None) -> None:
+    reset_account(1000.0)
+    place_order("AAA", "BUY", 2.0, 10.0, fee_bps=0, slippage_bps=0)
+    with pytest.raises(ValueError):
+        place_order("AAA", "SELL", 5.0, 10.0)  # no shorting on paper

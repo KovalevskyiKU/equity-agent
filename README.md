@@ -83,6 +83,21 @@ drawdown, tracking vs SPY), **Predictions** (top names each factor favors now),
 vol-target), **Crypto** (hold-BTC vs managed + funding carry), **Signals & news**.
 Equivalent: `eqa dashboard` or `streamlit run dashboard_app.py`.
 
+### Trading cockpit (web app: FastAPI + React)
+
+A real interactive trading interface (chart + signals + watchlist + order ticket +
+live portfolio), separate from the read-only Streamlit dashboard.
+
+```cmd
+pip install -e ".[api]"          :: fastapi + uvicorn
+eqa serve                        :: backend API at http://127.0.0.1:8000
+cd frontend && npm install && npm run dev   :: cockpit at http://localhost:5173
+```
+
+The cockpit talks to the API (`src/equity_agent/api/`): instruments, OHLC bars,
+per-symbol signals, portfolio/P&L, trades, and **manual orders**. Orders default to
+the **paper** broker; live venues (IBKR/Binance) are gated and land in a later phase.
+
 Backtesting: `eqa backtest --strategy vol-target`, `eqa backtest-sweep` (rolling,
 no LLM), `eqa backtest-llm` (LLM agent), `eqa backtest-kronos` (Kronos rule).
 
