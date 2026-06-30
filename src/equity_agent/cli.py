@@ -530,6 +530,18 @@ def daily(
 
 
 @app.command()
+def serve(
+    host: str = typer.Option("127.0.0.1", help="bind host"),
+    port: int = typer.Option(8000, help="port"),
+    reload: bool = typer.Option(False, help="auto-reload on code changes (dev)"),
+) -> None:
+    """Run the trading API (FastAPI) the web frontend talks to. Needs the [api] extra."""
+    import uvicorn
+
+    uvicorn.run("equity_agent.api.app:app", host=host, port=port, reload=reload)
+
+
+@app.command()
 def dashboard(port: int = typer.Option(8501, help="port to serve on")) -> None:
     """Launch the Streamlit dashboard (needs the [ui] extra)."""
     import subprocess
