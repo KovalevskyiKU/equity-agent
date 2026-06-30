@@ -196,3 +196,76 @@
   margin-top: 8px;
   color: #8b949e;
 }
+.ticket-msg.ok {
+  color: #26a69a;
+}
+.ticket-msg.err {
+  color: #ef5350;
+}
+.ticket-msg.info {
+  color: #8b949e;
+}
+
+/* venue selector */
+.venue-select {
+  width: 100%;
+  background: #0b0e14;
+  border: 1px solid #1b2230;
+  color: #c9d1d9;
+  border-radius: 4px;
+  padding: 6px;
+  margin: 4px 0 8px;
+}
+.venue-select:disabled {
+  opacity: 0.6;
+}
+.ticket-btns button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* live-venue badge (IBKR / Binance) */
+.live-badge {
+  background: #bb800933;
+  color: #e3b341;
+  border-color: #bb800955;
+}
+
+/* two-step confirm box */
+.confirm-box {
+  margin-top: 8px;
+  padding: 8px;
+  border: 1px solid #bb800955;
+  background: #bb80090f;
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.confirm-btns {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+.confirm-btns button {
+  flex: 1;
+  border: none;
+  border-radius: 4px;
+  padding: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  color: #fff;
+}
+.confirm-btns button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.confirm-cancel {
+  background: #30363d;
+}
+
+/* equity curve */
+.equity-chart {
+  width: 100%;
+  height: 160px;
+}
