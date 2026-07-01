@@ -22,7 +22,7 @@ logger = logging.getLogger("equity_agent")
 def reset_account(starting_cash: float) -> None:
     """Wipe paper state and start fresh with the given cash."""
     with session_scope() as s:
-        for model in (Trade, Position, EquitySnapshot, Account):
+        for model in (Trade, Position, EquitySnapshot, PendingOrder, Account):
             s.execute(delete(model))
         s.add(Account(id=1, cash=starting_cash, starting_cash=starting_cash))
 

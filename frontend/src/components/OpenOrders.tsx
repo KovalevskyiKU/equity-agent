@@ -46,6 +46,7 @@ export function OpenOrders({
         <thead>
           <tr>
             <th>Sym</th>
+            <th>Type</th>
             <th>Side</th>
             <th>Qty</th>
             <th>Limit</th>
@@ -56,6 +57,7 @@ export function OpenOrders({
           {list.map((o) => (
             <tr key={o.id}>
               <td>{o.symbol}</td>
+              <td className="small muted">{o.kind ?? 'limit'}</td>
               <td className={o.side === 'BUY' ? 'pos' : 'neg'}>{o.side}</td>
               <td>{o.qty}</td>
               <td>{o.limit_price.toFixed(2)}</td>
