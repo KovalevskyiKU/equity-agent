@@ -99,3 +99,17 @@ class BinanceBroker:
             self._ex.create_order(to_ccxt_symbol(symbol), "market", side.lower(), qty)
             logger.info("Binance order transmitted: %s %s %g", order.side, symbol, qty)
         return order
+
+    def open_orders(self, symbol: str | None = None) -> list[dict[str, object]]:
+        """Resting orders on the exchange (needs a connected, keyed client)."""
+        ccxt_sym = to_ccxt_symbol(symbol) if symbol else None
+        return [
+            {"id": o["id"], "symbol": o["symbol"], "side": o["side"],
+             "qty": o["amount"], "price": o.get("price")}
+            for o in self._ex.fetch_open_orders(ccxt_sym)
+        ]
+
+    def cancel_order(self, order_id: str, symbol: str) -> dict[str, object]:
+        """Cancel a live order on the exchange."""
+        self._ex.cancel_order(order_id, to_ccxt_symbol(symbol))
+        return {"id": order_id, "status": "cancelled"}
