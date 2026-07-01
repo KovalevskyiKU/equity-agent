@@ -22,7 +22,7 @@ logger = logging.getLogger("equity_agent")
 def reset_account(starting_cash: float) -> None:
     """Wipe paper state and start fresh with the given cash."""
     with session_scope() as s:
-        for model in (Trade, Position, EquitySnapshot, Account):
+        for model in (Trade, Position, EquitySnapshot, PendingOrder, Account):
             s.execute(delete(model))
         s.add(Account(id=1, cash=starting_cash, starting_cash=starting_cash))
 
@@ -194,37 +194,63 @@ def place_order(
 
 
 def place_limit_order(
-    symbol: str, side: str, qty: float, limit_price: float, now: datetime | None = None
+    symbol: str,
+    side: str,
+    qty: float,
+    limit_price: float,
+    kind: str = "limit",
+    now: datetime | None = None,
 ) -> dict[str, object]:
-    """Create a resting limit order (paper). Fills later when price crosses the limit."""
+    """Create a resting order (paper). ``kind`` = limit or stop; ``limit_price`` is the
+    trigger. A limit fills at a favourable cross; a stop fills at an adverse/breakout
+    cross (SELL stop-loss below, BUY stop-entry above)."""
     side = side.upper()
-    if side not in {"BUY", "SELL"} or qty <= 0 or limit_price <= 0:
-        raise ValueError("side must be BUY/SELL, qty>0, limit_price>0")
+    kind = kind.lower()
+    if side not in {"BUY", "SELL"} or qty <= 0 or limit_price <= 0 or kind not in {"limit", "stop"}:
+        raise ValueError("side BUY/SELL, qty>0, price>0, kind limit|stop")
     with session_scope() as s:
         order = PendingOrder(
-            symbol=symbol, side=side, qty=qty, limit_price=limit_price,
+            symbol=symbol, side=side, qty=qty, limit_price=limit_price, kind=kind,
             status="open", created_at=now or datetime.now(UTC),
         )
         s.add(order)
         s.flush()
         return {
-            "order_id": order.id, "status": "open", "symbol": symbol,
-            "side": side, "qty": qty, "limit_price": limit_price,
+            "order_id": order.id, "status": "open", "symbol": symbol, "side": side,
+            "qty": qty, "limit_price": limit_price, "kind": kind,
         }
 
 
+def place_stop_order(
+    symbol: str, side: str, qty: float, stop_price: float, now: datetime | None = None
+) -> dict[str, object]:
+    """Create a resting stop order (paper). SELL stop = stop-loss; BUY stop = breakout."""
+    return place_limit_order(symbol, side, qty, stop_price, kind="stop", now=now)
+
+
 def get_open_orders() -> list[dict[str, object]]:
-    """Open (resting) limit orders, newest first."""
+    """Open (resting) limit/stop orders, newest first."""
     with session_scope() as s:
         stmt = select(PendingOrder).where(PendingOrder.status == "open")
         rows = s.scalars(stmt.order_by(PendingOrder.id.desc())).all()
         return [
             {
                 "id": o.id, "symbol": o.symbol, "side": o.side, "qty": o.qty,
-                "limit_price": o.limit_price, "created_at": str(o.created_at),
+                "limit_price": o.limit_price, "kind": o.kind, "created_at": str(o.created_at),
             }
             for o in rows
         ]
+
+
+def _crossed(kind: str, side: str, price: float, trigger: float) -> bool:
+    """Whether a resting order triggers at ``price``.
+
+    limit: BUY fills below (cheaper), SELL fills above (richer).
+    stop:  BUY fills above (breakout), SELL fills below (stop-loss).
+    """
+    if kind == "stop":
+        return price >= trigger if side == "BUY" else price <= trigger
+    return price <= trigger if side == "BUY" else price >= trigger
 
 
 def cancel_order(order_id: int) -> dict[str, object]:
@@ -238,10 +264,10 @@ def cancel_order(order_id: int) -> dict[str, object]:
 
 
 def check_pending_fills(prices: dict[str, float], now: datetime | None = None) -> int:
-    """Fill open limit orders whose limit is crossed by ``prices``. Returns #filled.
+    """Fill open limit/stop orders whose trigger is crossed by ``prices``. Returns #filled.
 
-    BUY fills when price <= limit; SELL fills when price >= limit. Fills at the limit
-    price (no slippage). An order that can't fill (e.g. oversell) is cancelled.
+    Fills at the trigger price (no slippage). An order that can't fill (e.g. oversell)
+    is cancelled.
     """
     now = now or datetime.now(UTC)
     with session_scope() as s:
@@ -249,11 +275,7 @@ def check_pending_fills(prices: dict[str, float], now: datetime | None = None) -
         candidates = [
             (o.id, o.symbol, o.side, o.qty, o.limit_price)
             for o in opens
-            if o.symbol in prices
-            and (
-                (o.side == "BUY" and prices[o.symbol] <= o.limit_price)
-                or (o.side == "SELL" and prices[o.symbol] >= o.limit_price)
-            )
+            if o.symbol in prices and _crossed(o.kind, o.side, prices[o.symbol], o.limit_price)
         ]
 
     filled = 0

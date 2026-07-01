@@ -21,8 +21,10 @@ export function OrderTicket({ symbol, onDone }: { symbol: string; onDone: () => 
 
   const live = venue !== 'paper'
   const isLimit = orderType === 'limit'
-  // Resting limit orders are paper-only; block submit on live venues.
-  const limitOnLive = isLimit && live
+  const isStop = orderType === 'stop'
+  // Resting limit/stop orders are paper-only; block submit on live venues.
+  const priced = isLimit || isStop
+  const restingOnLive = priced && live
   const badge = live ? venue.toUpperCase() : 'PAPER'
 
   const say = (kind: 'ok' | 'err' | 'info', text: string) => {
@@ -36,15 +38,15 @@ export function OrderTicket({ symbol, onDone }: { symbol: string; onDone: () => 
       say('err', '⚠ enter a positive quantity')
       return
     }
-    if (limitOnLive) {
-      say('err', '⚠ limit orders are paper-only')
+    if (restingOnLive) {
+      say('err', `⚠ ${orderType} orders are paper-only`)
       return
     }
     let lp: number | undefined
-    if (isLimit) {
+    if (priced) {
       lp = parseFloat(limitPrice)
       if (!Number.isFinite(lp) || lp <= 0) {
-        say('err', '⚠ enter a positive limit price')
+        say('err', `⚠ enter a positive ${isStop ? 'stop' : 'limit'} price`)
         return
       }
     }
@@ -52,15 +54,16 @@ export function OrderTicket({ symbol, onDone }: { symbol: string; onDone: () => 
     setPending(true)
     say('info', '…')
     try {
-      // Paper market fills immediately; paper limit rests; live venues return a
-      // preview first (confirm=false).
+      // Paper market fills immediately; paper limit/stop rests; live venues
+      // return a preview first (confirm=false).
       const r = await api.placeOrder(
-        isLimit
-          ? { symbol, side, qty: q, venue, order_type: 'limit', limit_price: lp }
+        priced
+          ? { symbol, side, qty: q, venue, order_type: orderType, limit_price: lp }
           : { symbol, side, qty: q, venue, order_type: 'market' },
       )
       if (isResting(r)) {
-        say('ok', `✓ limit order placed @ ${Number(r.limit_price).toFixed(2)}`)
+        const label = r.kind === 'stop' ? 'stop' : 'limit'
+        say('ok', `✓ ${label} order placed @ ${Number(r.limit_price).toFixed(2)}`)
         onDone()
       } else if (isPreview(r)) {
         setPreview(r)
@@ -167,6 +170,17 @@ export function OrderTicket({ symbol, onDone }: { symbol: string; onDone: () => 
         >
           Limit
         </button>
+        <button
+          type="button"
+          className={'ordertype-btn' + (orderType === 'stop' ? ' active' : '')}
+          disabled={pending || !!preview}
+          onClick={() => {
+            setOrderType('stop')
+            setMsg('')
+          }}
+        >
+          Stop
+        </button>
       </div>
 
       <label className="small muted">Quantity</label>
@@ -179,9 +193,11 @@ export function OrderTicket({ symbol, onDone }: { symbol: string; onDone: () => 
         disabled={!!preview}
       />
 
-      {isLimit && (
+      {priced && (
         <>
-          <label className="small muted">Limit price</label>
+          <label className="small muted">
+            {isStop ? 'Stop (trigger) price' : 'Limit price'}
+          </label>
           <input
             value={limitPrice}
             onChange={(e) => setLimitPrice(e.target.value)}
@@ -197,22 +213,22 @@ export function OrderTicket({ symbol, onDone }: { symbol: string; onDone: () => 
       <div className="ticket-btns">
         <button
           className="buy"
-          disabled={pending || !!preview || limitOnLive}
+          disabled={pending || !!preview || restingOnLive}
           onClick={() => submit('BUY')}
         >
           Buy
         </button>
         <button
           className="sell"
-          disabled={pending || !!preview || limitOnLive}
+          disabled={pending || !!preview || restingOnLive}
           onClick={() => submit('SELL')}
         >
           Sell
         </button>
       </div>
 
-      {limitOnLive && (
-        <div className="ticket-msg small info">limit orders are paper-only</div>
+      {restingOnLive && (
+        <div className="ticket-msg small info">{orderType} orders are paper-only</div>
       )}
 
       {preview && (

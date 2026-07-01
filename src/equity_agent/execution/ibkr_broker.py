@@ -98,3 +98,19 @@ class IBKRBroker:
         self._ib.placeOrder(contract, MarketOrder(order.side, qty))
         logger.info("IBKR order transmitted: %s %s %g", order.side, symbol, qty)
         return order
+
+    def open_orders(self) -> list[dict[str, object]]:
+        """Resting orders at the gateway (needs a connected client)."""
+        return [
+            {"id": t.order.orderId, "symbol": t.contract.symbol,
+             "side": t.order.action, "qty": float(t.order.totalQuantity)}
+            for t in self._ib.openTrades()
+        ]
+
+    def cancel_order(self, order_id: int) -> dict[str, object]:
+        """Cancel a live order at the gateway."""
+        for t in self._ib.openTrades():
+            if t.order.orderId == order_id:
+                self._ib.cancelOrder(t.order)
+                return {"id": order_id, "status": "cancelled"}
+        raise ValueError(f"order {order_id} not found")

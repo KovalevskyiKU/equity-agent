@@ -38,6 +38,15 @@ export interface OpenOrder {
   qty: number
   limit_price: number
   created_at: string
+  kind?: 'limit' | 'stop'
+}
+export interface Alert {
+  id: number
+  symbol: string
+  kind: 'above' | 'below' | 'trend_up' | 'trend_down'
+  level: number | null
+  status: 'armed' | 'triggered'
+  triggered_at: string | null
 }
 export interface Portfolio {
   has_account: boolean
@@ -47,6 +56,7 @@ export interface Portfolio {
   monitor: Record<string, number>
   equity_curve: { time: string; equity: number }[]
   open_orders?: OpenOrder[]
+  alerts?: Alert[]
 }
 export interface Trade {
   time: string
@@ -91,17 +101,18 @@ export interface OrderTransmitted {
   qty: number
 }
 
-// order_type:"limit" (paper only): a resting limit order was created.
+// order_type:"limit"|"stop" (paper only): a resting order was created.
 export interface OrderResting {
   order_id: number
   status: 'open'
+  kind?: 'limit' | 'stop'
   symbol: string
   side: string
   qty: number
   limit_price: number
 }
 
-export type OrderType = 'market' | 'limit'
+export type OrderType = 'market' | 'limit' | 'stop'
 
 export interface OrderBody {
   symbol: string
@@ -152,6 +163,27 @@ export const api = {
     const data = await r.json()
     if (!r.ok) throw new Error(data.detail ?? `cancel failed (${r.status})`)
     return data as { id: number; status: string }
+  },
+  getAlerts: () => get<Alert[]>('/api/alerts'),
+  createAlert: async (body: {
+    symbol: string
+    kind: Alert['kind']
+    level?: number
+  }): Promise<Alert> => {
+    const r = await fetch('/api/alerts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    const data = await r.json()
+    if (!r.ok) throw new Error(data.detail ?? `alert failed (${r.status})`)
+    return data as Alert
+  },
+  deleteAlert: async (id: number): Promise<{ id: number; deleted: boolean }> => {
+    const r = await fetch(`/api/alerts/${id}`, { method: 'DELETE' })
+    const data = await r.json()
+    if (!r.ok) throw new Error(data.detail ?? `delete failed (${r.status})`)
+    return data as { id: number; deleted: boolean }
   },
 }
 

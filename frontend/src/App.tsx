@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import './App.css'
 import type { Bar, Instrument, Portfolio, Signals, Trade } from './api'
 import { api, connectPortfolioWS } from './api'
+import { Alerts } from './components/Alerts'
 import { Chart } from './components/Chart'
 import { EquityCurve } from './components/EquityCurve'
 import { OpenOrders } from './components/OpenOrders'
@@ -70,6 +71,7 @@ export default function App() {
         <aside className="right">
           <OrderTicket symbol={symbol} onDone={refresh} />
           <OpenOrders orders={portfolio?.open_orders ?? null} onDone={refresh} />
+          <Alerts symbol={symbol} alerts={portfolio?.alerts ?? null} onDone={refresh} />
           <PortfolioView p={portfolio} />
           <EquityCurve data={portfolio?.equity_curve ?? []} />
           <Trades trades={trades} />

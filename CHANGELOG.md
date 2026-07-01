@@ -14,8 +14,11 @@ Notable changes, newest first. Dates are when the work landed on `main`.
 - **React/Vite cockpit** (`frontend/`): watchlist (equities+crypto), TradingView
   candlestick chart with SMA overlays, signal bar, live portfolio + equity curve,
   order ticket with venue selector, open-orders panel, recent trades.
-- **Limit orders**: paper resting limit orders (`PendingOrder`) that fill when the
-  last price crosses the limit; open-orders list + cancel.
+- **Limit + stop orders**: paper resting orders (`PendingOrder`, kind limit|stop)
+  that fill when the last price crosses the trigger (limit = favourable, stop =
+  stop-loss/breakout); open-orders list + cancel.
+- **Alerts**: price (above/below) and trend (SMA cross) alerts that fire on refresh.
+- Live adapters gained `open_orders` / `cancel_order` (IBKR/Binance; keys required).
 - **Single-command deploy**: FastAPI serves the built cockpit at one port
   (`eqa serve`); Dockerfile + docker-compose for a one-container run.
 
