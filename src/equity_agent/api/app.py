@@ -201,16 +201,17 @@ def create_app() -> FastAPI:
     def create_order(req: OrderRequest) -> dict[str, object]:
         from ..signals.feature_store import load_bars
 
-        # Paper resting limit order.
-        if req.order_type.lower() == "limit":
+        # Paper resting limit/stop order (trigger price = limit_price).
+        otype = req.order_type.lower()
+        if otype in {"limit", "stop"}:
             if req.venue.lower() != "paper":
-                raise HTTPException(400, "limit orders are paper-only for now")
+                raise HTTPException(400, f"{otype} orders are paper-only for now")
             if req.limit_price is None or req.limit_price <= 0:
-                raise HTTPException(400, "limit_price required for a limit order")
+                raise HTTPException(400, f"limit_price (trigger) required for a {otype} order")
             from ..execution.paper_broker import place_limit_order
 
             try:
-                return place_limit_order(req.symbol, req.side, req.qty, req.limit_price)
+                return place_limit_order(req.symbol, req.side, req.qty, req.limit_price, kind=otype)
             except ValueError as e:
                 raise HTTPException(400, str(e)) from e
 

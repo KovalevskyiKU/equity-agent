@@ -139,7 +139,8 @@ class PendingOrder(Base):
     symbol: Mapped[str] = mapped_column(String(20), index=True)
     side: Mapped[str] = mapped_column(String(10))  # BUY|SELL
     qty: Mapped[float] = mapped_column(Float)
-    limit_price: Mapped[float] = mapped_column(Float)
+    limit_price: Mapped[float] = mapped_column(Float)  # trigger price (limit or stop)
+    kind: Mapped[str] = mapped_column(String(8), default="limit")  # limit|stop
     status: Mapped[str] = mapped_column(String(12), default="open")  # open|filled|cancelled
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     filled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

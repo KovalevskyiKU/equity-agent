@@ -9,6 +9,7 @@ from equity_agent.execution.paper_broker import (
     get_positions,
     place_limit_order,
     place_order,
+    place_stop_order,
     rebalance,
     reset_account,
 )
@@ -103,6 +104,16 @@ def test_limit_order_fills_on_cross(temp_db: None) -> None:
     assert check_pending_fills({"AAA": 98.0}) == 1  # at/below limit -> fill
     assert get_open_orders() == []
     assert abs(get_positions()["AAA"] - 2.0) < 1e-9
+
+
+def test_stop_loss_fills_on_adverse_cross(temp_db: None) -> None:
+    reset_account(10000.0)
+    place_order("AAA", "BUY", 5.0, 100.0, fee_bps=0, slippage_bps=0)  # long position
+    r = place_stop_order("AAA", "SELL", 5.0, 90.0)  # stop-loss below
+    assert r["kind"] == "stop"
+    assert check_pending_fills({"AAA": 95.0}) == 0  # above stop -> no fill
+    assert check_pending_fills({"AAA": 88.0}) == 1  # <= stop -> fills (sell)
+    assert "AAA" not in get_positions()
 
 
 def test_cancel_open_order(temp_db: None) -> None:
