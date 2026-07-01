@@ -147,6 +147,20 @@ class PendingOrder(Base):
     fill_price: Mapped[float | None] = mapped_column(Float)
 
 
+class AlertRule(Base):
+    """A price/trend alert. Fires (armed -> triggered) when its condition first holds."""
+
+    __tablename__ = "alerts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    symbol: Mapped[str] = mapped_column(String(20), index=True)
+    kind: Mapped[str] = mapped_column(String(12))  # above|below|trend_up|trend_down
+    level: Mapped[float | None] = mapped_column(Float)  # for above|below
+    status: Mapped[str] = mapped_column(String(12), default="armed")  # armed|triggered
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    triggered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 class Account(Base):
     """Single-row paper-trading cash account (id always 1)."""
 

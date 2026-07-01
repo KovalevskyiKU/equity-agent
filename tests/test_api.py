@@ -90,6 +90,22 @@ def test_limit_order_requires_price(temp_db: None) -> None:
     assert r.status_code == 400
 
 
+def test_alert_lifecycle(temp_db: None) -> None:
+    c = TestClient(create_app())
+    r = c.post("/api/alerts", json={"symbol": "AAA", "kind": "above", "level": 100.0})
+    assert r.status_code == 200 and r.json()["status"] == "armed"
+    aid = r.json()["id"]
+    assert any(a["id"] == aid for a in c.get("/api/alerts").json())
+    assert c.delete(f"/api/alerts/{aid}").status_code == 200
+    assert c.get("/api/alerts").json() == []
+
+
+def test_alert_above_requires_level(temp_db: None) -> None:
+    c = TestClient(create_app())
+    r = c.post("/api/alerts", json={"symbol": "AAA", "kind": "above"})
+    assert r.status_code == 400
+
+
 def test_ws_portfolio_pushes_snapshot(temp_db: None) -> None:
     c = TestClient(create_app())
     with c.websocket_connect("/ws/portfolio") as ws:

@@ -43,6 +43,12 @@ class OrderRequest(BaseModel):
     confirm: bool = False  # live venues require an explicit confirm (two-step)
 
 
+class AlertRequest(BaseModel):
+    symbol: str
+    kind: str  # above | below | trend_up | trend_down
+    level: float | None = None  # required for above/below
+
+
 def build_portfolio() -> dict[str, object]:
     """Paper account snapshot: cash, positions marked to last close, monitor, curve.
 
@@ -65,6 +71,28 @@ def build_portfolio() -> dict[str, object]:
         if fill_prices and check_pending_fills(fill_prices):
             open_orders = get_open_orders()
 
+    # Evaluate armed alerts against the latest price / trend.
+    from ..alerts import check_alerts, list_alerts
+
+    alerts = list_alerts()
+    armed = [a for a in alerts if a["status"] == "armed"]
+    if armed:
+        a_prices: dict[str, float] = {}
+        a_trends: dict[str, str] = {}
+        for a in armed:
+            sym = str(a["symbol"])
+            b = load_bars(sym)
+            if b.empty:
+                continue
+            close = b["close"]
+            a_prices[sym] = float(close.iloc[-1])
+            if len(close) >= 100:
+                fast = float(close.rolling(20).mean().iloc[-1])
+                slow = float(close.rolling(100).mean().iloc[-1])
+                a_trends[sym] = "up" if fast > slow else "down"
+        if check_alerts(a_prices, a_trends):
+            alerts = list_alerts()
+
     ov = paper_overview()
     positions = []
     for _, p in cast(pd.DataFrame, ov["positions"]).iterrows():
@@ -86,6 +114,7 @@ def build_portfolio() -> dict[str, object]:
         "starting_cash": float(ov["starting_cash"]),  # type: ignore[arg-type]
         "positions": positions,
         "open_orders": open_orders,
+        "alerts": alerts,
         "monitor": monitor_summary(curve, spy_close),
         "equity_curve": [
             {"time": str(r["ts"]), "equity": float(r["equity"])} for _, r in curve.iterrows()
@@ -268,6 +297,30 @@ def create_app() -> FastAPI:
             "filled": "transmitted", "venue": venue,
             "symbol": o.symbol, "side": o.side, "qty": o.qty,
         }
+
+    @app.get("/api/alerts")
+    def alerts_list() -> list[dict[str, object]]:
+        from ..alerts import list_alerts
+
+        return list_alerts()
+
+    @app.post("/api/alerts")
+    def alerts_create(req: AlertRequest) -> dict[str, object]:
+        from ..alerts import create_alert
+
+        try:
+            return create_alert(req.symbol, req.kind, req.level)
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+
+    @app.delete("/api/alerts/{alert_id}")
+    def alerts_delete(alert_id: int) -> dict[str, object]:
+        from ..alerts import delete_alert
+
+        try:
+            return delete_alert(alert_id)
+        except ValueError as e:
+            raise HTTPException(404, str(e)) from e
 
     @app.websocket("/ws/portfolio")
     async def ws_portfolio(ws: WebSocket) -> None:
