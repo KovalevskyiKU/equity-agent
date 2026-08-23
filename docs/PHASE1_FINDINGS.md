@@ -524,3 +524,155 @@ qualitative-LLM alpha as out of scope unless the data/universe changes.
 index (SPY); optionally run the validated vol-target overlay for a risk-adjusted
 mandate. All further value is operational (execution, monitoring, cost/risk), not
 alpha.
+
+
+## Phase 4 — the measurement audit: alpha/beta, long-short, reversal (2026-08-23)
+
+Re-opened the file on a fair question: *did we under-measure?* Three genuine gaps
+were found in our own method, and closing them changed what we can claim.
+
+### Gap 1 — we never measured alpha, only compared Sharpe
+
+Every earlier verdict rested on "strategy Sharpe vs SPY Sharpe". That is **not** an
+edge test: in a decade where the market compounded at 13.7%/yr, any strategy with
+beta < 1 looks bad even with positive alpha. Added `metrics.capm_alpha_beta`
+(OLS of excess returns on the excess market -> annualized alpha, beta, **t-stat of
+alpha**, information ratio).
+
+Point-in-time, total-return, long-only top-quintile:
+
+| factor | Sharpe | beta | ann alpha | alpha t | IR |
+|--------|-------:|-----:|----------:|--------:|---:|
+| composite (EY+ROE+GM) | **0.85** | 0.96 | **+1.55%** | 0.84 | 0.25 |
+| gross_margin | 0.80 | 1.09 | +0.91% | 0.38 | 0.11 |
+| roe | 0.76 | 0.96 | −0.17% | −0.10 | −0.03 |
+| momentum | 0.75 | 0.92 | +0.86% | 0.31 | 0.09 |
+| low_vol | 0.71 | **0.63** | +1.10% | 0.42 | 0.12 |
+| earnings_yield | 0.66 | 1.08 | −1.04% | −0.32 | −0.09 |
+| equal-weight basket | 0.70 | 0.97 | **−1.27%** | −0.69 | −0.20 |
+| *SPY* | *0.81* | *1.00* | — | — | — |
+
+Alphas are **small and positive** for the composite / low-vol / momentum /
+gross_margin, but **none is significant** (all |t| < 1). The equal-weight basket has
+a genuinely *negative* alpha — cap-weight beats it on a risk-adjusted basis, now
+properly measured rather than inferred from Sharpe.
+
+### Gap 2 — we tested long-only (low power), never a real long-short
+
+A long-only quintile portfolio is mostly beta plus a small tilt. The high-power test
+of a factor premium is the **dollar-neutral long-short spread**, which we had only
+ever computed "idealized" outside the engine. Added `backtest/long_short.py`
+(gross 1.0, net 0, held between rebalances, **net of turnover costs**):
+
+| factor | LS ann ret | LS Sharpe | beta | alpha t | turnover |
+|--------|-----------:|----------:|-----:|--------:|---------:|
+| gross_margin | +1.63% | 0.27 | 0.04 | 0.65 | 6 |
+| roe | +0.59% | 0.16 | −0.02 | 0.79 | 13 |
+| earnings_yield | +0.44% | 0.11 | 0.01 | 0.29 | 22 |
+| composite | +0.26% | 0.11 | −0.00 | 0.43 | 21 |
+| momentum | −0.03% | 0.05 | −0.06 | 0.45 | 59 |
+| net_margin | −0.55% | −0.11 | −0.01 | −0.23 | 12 |
+| low_vol | −4.53% | −0.36 | −0.35 | 0.35 | 32 |
+
+Market-neutral, the premia are **~zero** (all |alpha t| < 0.8). Note gross_margin's
+turnover is only **6** and it still pays ~nothing — so **trading costs are not what
+killed these factors**; the premia simply aren't there in this universe/period.
+
+### Gap 3 — an untested classic: short-term reversal (and it IS real)
+
+We had tested 12-1 momentum and low-vol but never **short-term reversal**, one of
+the most robust documented cross-sectional effects. Tested weekly, point-in-time:
+
+| lookback | x-sec IC | IC t | gross ann | cost drag | **net ann** | turnover |
+|----------|---------:|-----:|----------:|----------:|------------:|---------:|
+| 5d | +0.0125 | 1.63 | +3.41% | −4.87% | −1.47% | 920 |
+| 10d | +0.0164 | **2.27** | +2.23% | −3.41% | −1.18% | 647 |
+| 21d | +0.0152 | **2.10** | +3.71% | −2.39% | **+1.33%** | 444 |
+
+**This is the first statistically significant cross-sectional signal in the equity
+work** (IC t = 2.27 / 2.10). It is also the clearest demonstration of why it doesn't
+help us: the gross premium (~2-4%/yr) is roughly the size of its own trading costs
+(2.4-4.9%/yr at 6 bps/side). Slowing it down does not rescue it — at **monthly**
+rebalance the gross premium goes *negative* (−0.2% to −1.0%), because reversal is a
+short-horizon effect that must be traded weekly to exist. This is the textbook
+liquidity-provision premium: real, and earned by market makers inside the spread,
+not by us.
+
+### Reproducibility fix found along the way
+
+Wikipedia removed the "Selected changes" table from the constituents page, and our
+parser indexed `tables[1]` — so our headline point-in-time result had silently
+become **unreproducible**. `fetch_sp500_changes` now locates the table by content,
+falls back to a known-good revision, and caches to `data/sp500_changes.csv`.
+
+### What the audit changes
+
+The verdict **survives, better founded**: measured properly (alpha/beta, long-short,
+net of costs), no factor — old or newly added — delivers a significant premium on
+this universe. What we gained is precision about *why*: the small positive alphas
+(composite +1.55%/yr, IR 0.25) would need **~64 years** of data to prove at t=2, and
+the one significant signal we found lives inside the bid-ask spread.
+
+**Statistical-power note (worth remembering):** proving an edge at t=2 needs roughly
+`(2/IR)^2` years — 16 years at IR 0.5, 64 at IR 0.25, 100 at IR 0.2. With 11.4 years
+we can only ever prove *large* edges. Absence of proof here is not proof of absence;
+it is a bound on what is provable with free data and one decade.
+
+
+### Phase 4b — the factors we had never tested (2026-08-23)
+
+Extended the point-in-time fundamentals connector with **total assets, share count
+and operating cash flow** (712/738 names) and tested four classic anomalies we had
+simply never tried. Point-in-time, total-return, monthly, net of costs:
+
+| factor | coverage | x-sec IC | IC t | LS ann | LS Sharpe | turnover |
+|--------|---------:|---------:|-----:|-------:|----------:|---------:|
+| **net_issuance** | 319 | **+0.0231** | **2.45** | **+1.64%** | **0.44** | **15** |
+| gp_to_assets (Novy-Marx) | 154 | +0.0108 | 1.02 | −1.08% | −0.17 | 9 |
+| asset_growth | 448 | −0.0058 | −0.68 | −0.29% | −0.05 | 21 |
+| accruals | 398 | −0.0006 | −0.08 | −0.03% | 0.01 | 17 |
+
+**Net share issuance is the best signal found anywhere in this project** — and
+unlike short-term reversal, **costs do not eat it** (turnover 15, not 444). Firms
+that shrink their share count (buybacks) outperform issuers.
+
+**Robustness — it holds up where everything else failed:**
+
+- *Quantile choice:* long-short Sharpe 0.32 / 0.44 / 0.43 / 0.49 across top-bottom
+  10/20/30/40% — not knife-edge.
+- *Sub-periods:* first half +1.62%/yr (Sharpe 0.45), second half +1.65%/yr
+  (Sharpe 0.43) — near-identical, the stability we never saw in any other factor.
+- *Per year:* positive in 9 of 12 years.
+
+**Best composite so far:** earnings_yield + ROE + net_issuance (sector-neutral),
+long-only top quintile:
+
+| construction | Sharpe | ann alpha | alpha t |
+|--------------|-------:|----------:|--------:|
+| EY + ROE + **net_issuance** | **0.90** | **+2.67%** | **1.30** |
+| EY + ROE + gross_margin (old best) | 0.85 | +1.55% | 0.84 |
+| *SPY* | *0.81* | — | — |
+
+**Honest caveats — this is a lead, not a green light:**
+
+1. **Still not statistically significant.** alpha t = 1.30 (IR ~0.39); proving it at
+   t = 2 needs ~27 years of data. We have 11.4.
+2. **It has decayed.** The per-year long-short returns are strong in 2016-2022
+   (+1.4% to +3.8%) but flat-to-negative in **2023-2026** (−0.2%, +0.1%, +0.1%,
+   −1.2%) — consistent with the anomaly being arbitraged away, exactly as happened
+   to the crypto funding carry.
+3. **Coverage is 319 of ~460 members** (the share-count tag is missing for ~24% of
+   filers), so there is mild selection.
+4. The long-short leg assumes costless shorting; a real short book pays borrow.
+
+### Updated verdict after the audit
+
+The earlier flat "no factor beats SPY" was **too strong**. The accurate statement:
+
+> Across everything tested, **one factor — net share issuance — carries a
+> statistically significant, cost-surviving, sub-period-stable cross-sectional
+> signal**, and a composite using it shows +2.67%/yr alpha over SPY. That alpha is
+> **not provable** with 11 years of data (t = 1.30), and the signal has visibly
+> **decayed since 2023**. Everything else we tested — momentum, low-vol, value,
+> quality, margins, asset growth, accruals, gross-profits-to-assets, and the LLM
+> layer — shows no significant premium.

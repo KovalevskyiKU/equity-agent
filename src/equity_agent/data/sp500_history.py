@@ -18,11 +18,15 @@ Maintenance helper (needs network + lxml), like :mod:`universe`.
 from __future__ import annotations
 
 import io
+import logging
+from pathlib import Path
 
 import pandas as pd
 import requests
 
 from .universe import _HEADERS, WIKI_SP500_URL, fetch_sp500_symbols, to_yf_symbol
+
+logger = logging.getLogger("equity_agent")
 
 
 def _norm(x: object) -> str | None:
@@ -34,20 +38,82 @@ def _norm(x: object) -> str | None:
     return sym or None
 
 
-def fetch_sp500_changes(timeout: float = 30.0) -> pd.DataFrame:
-    """Wikipedia S&P 500 changes log as columns ``eff`` (datetime), ``add``, ``rem``.
+_CHANGES_COLS = ["eff", "add", "add_sec", "rem", "rem_sec", "reason"]
+# Wikipedia dropped the "Selected changes" table from the live page in 2026-07; this
+# revision still carries it and is the reproducible fallback.
+_FALLBACK_OLDID = 1360191682
 
-    Tickers are normalized for yfinance; rows without a parseable date are dropped.
+
+def _changes_cache_path() -> Path:
+    from ..config import PROJECT_ROOT, load_config
+
+    d = PROJECT_ROOT / load_config().data_dir
+    d.mkdir(parents=True, exist_ok=True)
+    return d / "sp500_changes.csv"
+
+
+def _find_changes_table(tables: list[pd.DataFrame]) -> pd.DataFrame | None:
+    """Pick the changes table by CONTENT (Added/Removed columns), not by position.
+
+    Indexing ``tables[1]`` broke when the page was restructured; matching on the
+    header keeps this working across edits.
     """
-    html = requests.get(WIKI_SP500_URL, headers=_HEADERS, timeout=timeout).text
-    ch = pd.read_html(io.StringIO(html))[1]
-    ch.columns = ["eff", "add", "add_sec", "rem", "rem_sec", "reason"]
+    for t in tables:
+        header = " ".join(str(c) for c in t.columns)
+        if "Added" in header and "Removed" in header and t.shape[1] >= 5:
+            return t
+    return None
+
+
+def _parse_changes(raw: pd.DataFrame) -> pd.DataFrame:
+    ch = raw.copy()
+    ch.columns = _CHANGES_COLS
     ch = ch.iloc[1:].copy()  # drop the repeated sub-header row
     ch["eff"] = pd.to_datetime(ch["eff"], errors="coerce")
     ch = ch.dropna(subset=["eff"])
     ch["add"] = ch["add"].map(_norm)
     ch["rem"] = ch["rem"].map(_norm)
     return ch[["eff", "add", "rem"]].reset_index(drop=True)
+
+
+def _fetch_tables(url: str, params: dict[str, str] | None, timeout: float) -> list[pd.DataFrame]:
+    html = requests.get(url, params=params, headers=_HEADERS, timeout=timeout).text
+    return pd.read_html(io.StringIO(html))
+
+
+def fetch_sp500_changes(timeout: float = 30.0, use_cache: bool = True) -> pd.DataFrame:
+    """S&P 500 changes log as ``eff`` (datetime), ``add``, ``rem`` (yfinance-normalized).
+
+    Resolution order, so point-in-time research stays reproducible even when the
+    upstream page changes: live page -> a known-good old revision -> local CSV cache.
+    A successful fetch refreshes the cache.
+    """
+    cache = _changes_cache_path()
+
+    for url, params in (
+        (WIKI_SP500_URL, None),
+        (
+            "https://en.wikipedia.org/w/index.php",
+            {"title": "List_of_S&P_500_companies", "oldid": str(_FALLBACK_OLDID)},
+        ),
+    ):
+        try:
+            table = _find_changes_table(_fetch_tables(url, params, timeout))
+        except Exception as e:  # noqa: BLE001 - network/parse issues fall through
+            logger.warning("changes fetch failed (%s): %s", url, e)
+            continue
+        if table is not None:
+            parsed = _parse_changes(table)
+            parsed.to_csv(cache, index=False)
+            return parsed
+
+    if use_cache and cache.exists():
+        logger.warning("using cached S&P 500 changes (%s) - upstream unavailable", cache)
+        cached = pd.read_csv(cache)
+        cached["eff"] = pd.to_datetime(cached["eff"], errors="coerce")
+        return cached.dropna(subset=["eff"])
+
+    raise RuntimeError("could not obtain the S&P 500 changes table (live, revision, or cache)")
 
 
 def ever_members(current: list[str], changes: pd.DataFrame, start: object) -> list[str]:
