@@ -714,3 +714,57 @@ construction (Sharpe 0.90, alpha +2.67%, t 1.30) vs the quarterly variant (0.88,
 
 **Conclusion:** keep the **annual** net-issuance factor; the quarterly feed is not
 worth its extra plumbing. The one real signal in this project is real but fading.
+
+
+### Phase 4d — mid and small caps: the segment where factors are supposed to work (2026-08-24)
+
+Factor premia are documented strongest in smaller companies, and we had only ever
+tested the S&P 500 — the most efficient segment on earth. So we ingested the mid-cap
+(S&P 400) and small-cap (S&P 600) universes: **1,665 ever-members since 2015,
+1,292 with price data**.
+
+**The survivorship caveat turned out to be smaller than feared.** Both index pages
+carry changes tables, so membership is reconstructed **point-in-time** here too —
+S&P 400 back to 2012 (full period valid), S&P 600 only to 2019-12 (so its PIT test
+starts in 2020). Costs were raised to **2 bps fee + 15 bps slippage** (vs 1 + 5 for
+large caps) to reflect wider small-cap spreads.
+
+**First finding — there was no size premium to harvest.** The equal-weight index
+baskets *underperformed* SPY on a risk-adjusted basis:
+
+| universe (PIT) | Sharpe | beta | alpha vs SPY |
+|----------------|-------:|-----:|-------------:|
+| S&P 400 mid (2015+) | 0.63 | 1.07 | **−2.04%** |
+| S&P 400 mid (2020+) | 0.61 | 1.09 | **−2.72%** |
+| S&P 600 small (2020+) | 0.59 | 1.10 | **−2.13%** |
+| *SPY* | *0.81* | *1.00* | — |
+
+**Second finding — the factors don't work here either.** Long-short, net of
+small-cap costs:
+
+| universe | factor | x-sec IC | IC t | LS ann | LS Sharpe | LO alpha | alpha t |
+|----------|--------|---------:|-----:|-------:|----------:|---------:|--------:|
+| mid 2015+ | momentum | −0.010 | −0.63 | −2.28% | −0.18 | +1.59% | 0.44 |
+| mid 2015+ | low_vol | −0.005 | −0.27 | −6.46% | −0.56 | −1.56% | −0.56 |
+| mid 2015+ | reversal 21d | +0.000 | 0.03 | −1.93% | −0.21 | −6.76% | −1.51 |
+| small 2020+ | momentum | +0.015 | 0.80 | +1.23% | 0.18 | +5.77% | 0.76 |
+| small 2020+ | low_vol | −0.002 | −0.09 | −8.45% | −0.76 | +1.77% | 0.34 |
+| small 2020+ | reversal 21d | −0.007 | −0.54 | −2.90% | −0.30 | −2.29% | −0.28 |
+
+**Nothing is significant — every |t| < 1.** Small-cap momentum has the largest
+long-only alpha (+5.77%/yr) but at t = 0.76 it is noise, and its market-neutral
+spread is only +1.23% (Sharpe 0.18). Short-term reversal, which at least had a
+*significant IC* in large caps, has **no IC at all** here and its turnover (120-215)
+is annihilated by the wider spreads.
+
+**Caveats, stated plainly:**
+- Coverage is 670/865 (mid) and 858/1078 (small) — the missing names are mostly
+  delisted, so the residual survivorship bias flatters these numbers. The true
+  results are, if anything, **worse** than shown.
+- The S&P 600 window is only 6.6 years (PIT data starts 2020) — low power.
+- 15 bps slippage may still be optimistic for the smallest, least liquid names.
+
+**Conclusion:** the "go where the premia are stronger" hypothesis is **not supported
+by our data**. Point-in-time, net of realistic costs, mid and small caps deliver
+neither a size premium nor a factor premium — and the reversal effect that survived
+statistically in large caps is wiped out by their wider spreads.
