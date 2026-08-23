@@ -99,7 +99,9 @@ def _num(v: object) -> float:
 
 def _extract(section: list[dict], candidates: list[str]) -> float:
     """First value whose concept matches a candidate tag (exact, then suffix match)."""
-    by_concept = {c.get("concept"): c.get("value") for c in section}
+    # Some filings carry malformed section entries (plain strings instead of
+    # concept dicts) — skip them rather than crashing the whole ingest.
+    by_concept = {c.get("concept"): c.get("value") for c in section if isinstance(c, dict)}
     for tag in candidates:
         if tag in by_concept:
             return _num(by_concept[tag])
