@@ -676,3 +676,41 @@ The earlier flat "no factor beats SPY" was **too strong**. The accurate statemen
 > **decayed since 2023**. Everything else we tested — momentum, low-vol, value,
 > quality, margins, asset growth, accruals, gross-profits-to-assets, and the LLM
 > layer — shows no significant premium.
+
+
+### Phase 4c — does quarterly data rescue net issuance? No. (2026-08-23)
+
+The annual issuance factor only refreshes once a year, so a natural hypothesis was
+that the **2023-2026 decay was staleness**, not genuine arbitrage. Tested it: added
+a quarterly share-count feed (607 symbols) and rebuilt the factor as a
+year-over-year change against the **same fiscal quarter** (so the quarter-vs-YTD
+averaging convention is constant on both sides).
+
+| version | coverage | x-sec IC | IC t | LS ann | LS Sharpe | turnover |
+|---------|---------:|---------:|-----:|-------:|----------:|---------:|
+| **annual (10-K)** | 319 | **+0.0231** | **2.45** | **+1.64%** | **0.44** | **15** |
+| quarterly (10-Q) | 356 | +0.0187 | 1.92 | +0.91% | 0.24 | 21 |
+
+**The fresher signal is weaker, not stronger** — despite *better* coverage (356 vs
+319), so this is not a sample-composition artifact. Quarterly weighted-average share
+counts are noisier than the audited annual figure, and issuance appears to be a
+genuinely slow, annual-horizon effect: speeding it up adds noise and turnover
+(21 vs 15), not information.
+
+**And the decay is real.** Long-short returns by year:
+
+| version | 2016-2022 | 2023 | 2024 | 2025 | 2026 |
+|---------|-----------|-----:|-----:|-----:|-----:|
+| annual | +1.4% … +3.8% | −0.2% | +0.1% | +0.1% | −1.2% |
+| quarterly | −1.6% … +4.1% | +0.5% | −0.1% | −1.6% | −1.4% |
+
+Both versions go flat-to-negative from 2023 — so the fade is **not** a data-staleness
+artifact. Treat it as genuine decay (arbitrage or regime), exactly the caveat the
+Phase 4b write-up flagged.
+
+Composites confirm the ordering: EY+ROE+**annual** issuance stays the best
+construction (Sharpe 0.90, alpha +2.67%, t 1.30) vs the quarterly variant (0.88,
++2.30%, t 1.14).
+
+**Conclusion:** keep the **annual** net-issuance factor; the quarterly feed is not
+worth its extra plumbing. The one real signal in this project is real but fading.

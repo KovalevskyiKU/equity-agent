@@ -99,7 +99,9 @@ def _num(v: object) -> float:
 
 def _extract(section: list[dict], candidates: list[str]) -> float:
     """First value whose concept matches a candidate tag (exact, then suffix match)."""
-    by_concept = {c.get("concept"): c.get("value") for c in section}
+    # Some filings carry malformed section entries (plain strings instead of
+    # concept dicts) — skip them rather than crashing the whole ingest.
+    by_concept = {c.get("concept"): c.get("value") for c in section if isinstance(c, dict)}
     for tag in candidates:
         if tag in by_concept:
             return _num(by_concept[tag])
@@ -175,4 +177,89 @@ def ingest_fundamentals(
 def load_fundamentals(symbol: str) -> pd.DataFrame:
     """Read a symbol's stored fundamentals (empty frame if not fetched)."""
     path = _fundamentals_dir() / f"{symbol.replace('^', '_')}.parquet"
+    return pd.read_parquet(path) if path.exists() else pd.DataFrame()
+
+
+# --------------------------------------------------------------------------- #
+# Quarterly share counts (for a fresher net-issuance signal)
+# --------------------------------------------------------------------------- #
+# The quarterly as-reported feed is unusable for *flows* (10-Qs carry year-to-date
+# figures), but a share count is a **level**, not a flow, so quarterly filings give a
+# valid reading. Comparing the SAME fiscal quarter year-over-year (Q2 vs Q2) also
+# keeps the YTD-vs-quarter averaging convention constant on both sides of the ratio.
+_SHARE_TAGS = [
+    "us-gaap_WeightedAverageNumberOfDilutedSharesOutstanding",
+    "us-gaap_WeightedAverageNumberOfSharesOutstandingBasic",
+    "us-gaap_CommonStockSharesOutstanding",
+    "dei_EntityCommonStockSharesOutstanding",
+]
+
+
+def _quarterly_dir() -> Path:
+    d = PROJECT_ROOT / load_config().data_dir / "fundamentals_q"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def fetch_quarterly_shares(symbol: str, token: str, timeout: float = 30.0) -> pd.DataFrame:
+    """Quarterly share count per filing: filed_date, end_date, year, quarter, shares."""
+    url = f"{_URL}?symbol={symbol}&freq=quarterly&token={token}"
+    r = requests.get(url, timeout=timeout)
+    if r.status_code != 200:
+        logger.warning("[%s] finnhub quarterly status %s", symbol, r.status_code)
+        return pd.DataFrame()
+    rows: list[dict[str, object]] = []
+    for f in r.json().get("data", []):
+        rep = f.get("report", {})
+        shares = _extract(rep.get("ic", []), _SHARE_TAGS)
+        if shares != shares:  # NaN -> try the balance sheet
+            shares = _extract(rep.get("bs", []), _SHARE_TAGS)
+        rows.append(
+            {
+                "filed_date": pd.to_datetime(f.get("filedDate"), errors="coerce"),
+                "end_date": pd.to_datetime(f.get("endDate"), errors="coerce"),
+                "year": f.get("year"),
+                "quarter": f.get("quarter"),
+                "shares": shares,
+            }
+        )
+    if not rows:  # symbol has no quarterly filings at all
+        return pd.DataFrame()
+    df = pd.DataFrame(rows).dropna(subset=["filed_date", "end_date"])
+    if df.empty:
+        return df
+    df = df.sort_values("filed_date").drop_duplicates("end_date", keep="first")
+    return df.reset_index(drop=True)
+
+
+def ingest_quarterly_shares(
+    symbols: list[str], token: str | None = None, rate_per_min: float = 55.0
+) -> dict[str, int]:
+    """Fetch quarterly share counts for each symbol -> data/fundamentals_q/."""
+    token = token or get_settings().finnhub_api_key
+    if not token:
+        raise RuntimeError("FINNHUB_API_KEY not set")
+    out_dir = _quarterly_dir()
+    delay = 60.0 / rate_per_min
+    counts: dict[str, int] = {}
+    for i, sym in enumerate(symbols):
+        try:
+            df = fetch_quarterly_shares(sym, token)
+        except requests.RequestException as e:
+            logger.warning("[%s] quarterly fetch failed: %s", sym, e)
+            df = pd.DataFrame()
+        usable = df[df["shares"].notna()] if not df.empty else df
+        counts[sym] = len(usable)
+        if not usable.empty:
+            usable.to_parquet(out_dir / f"{sym.replace('^', '_')}.parquet")
+        if (i + 1) % 50 == 0:
+            got = sum(1 for v in counts.values() if v > 0)
+            logger.info("quarterly shares %d/%d (%d with data)", i + 1, len(symbols), got)
+        time.sleep(delay)
+    return counts
+
+
+def load_quarterly_shares(symbol: str) -> pd.DataFrame:
+    """Read a symbol's stored quarterly share counts (empty if not fetched)."""
+    path = _quarterly_dir() / f"{symbol.replace('^', '_')}.parquet"
     return pd.read_parquet(path) if path.exists() else pd.DataFrame()
