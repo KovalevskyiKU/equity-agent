@@ -26,7 +26,9 @@ import pandas as pd
 import requests
 
 WIKI_SP500_URL = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
-_HEADERS = {"User-Agent": "Mozilla/5.0 (equity-agent research)"}
+_HEADERS = {
+    "User-Agent": "equity-agent/0.1 (quant research; https://github.com/KovalevskyiKU/equity-agent)"
+}
 
 
 def to_yf_symbol(symbol: str) -> str:

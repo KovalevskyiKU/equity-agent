@@ -115,3 +115,51 @@ def return_summary(
         "max_drawdown": max_drawdown(returns),
         "calmar": calmar_ratio(returns, periods_per_year),
     }
+
+
+def capm_alpha_beta(
+    returns: pd.Series,
+    market: pd.Series,
+    periods_per_year: int = TRADING_DAYS,
+    risk_free: float = 0.0,
+) -> dict[str, float]:
+    """OLS of excess strategy returns on excess market returns — the standard edge test.
+
+    ``r_s - rf = alpha + beta * (r_m - rf) + e``
+
+    Comparing raw Sharpe (what we did before) is not a test of edge: in a strong bull
+    decade any strategy with beta < 1 looks bad even with a positive alpha. This
+    separates the two. Returns annualized alpha, beta, the **t-stat of alpha** (the
+    thing that says whether the edge is real), the information ratio (alpha over
+    residual risk), R^2 and n.
+    """
+    pair = pd.concat([returns, market], axis=1).dropna()
+    n = len(pair)
+    if n < 30:
+        return {k: float("nan") for k in
+                ("ann_alpha", "beta", "alpha_t", "info_ratio", "r2", "n")} | {"n": float(n)}
+
+    rf = risk_free / periods_per_year
+    y = pair.iloc[:, 0].to_numpy() - rf
+    x = pair.iloc[:, 1].to_numpy() - rf
+    X = np.column_stack([np.ones(n), x])
+
+    coef, *_ = np.linalg.lstsq(X, y, rcond=None)
+    alpha_d, beta = float(coef[0]), float(coef[1])
+    resid = y - X @ coef
+    dof = n - 2
+    sigma2 = float(resid @ resid) / dof
+    xtx_inv = np.linalg.inv(X.T @ X)
+    se_alpha = float(np.sqrt(sigma2 * xtx_inv[0, 0]))
+
+    resid_vol = float(np.std(resid, ddof=2)) * np.sqrt(periods_per_year)
+    ann_alpha = alpha_d * periods_per_year
+    ss_tot = float(((y - y.mean()) ** 2).sum())
+    return {
+        "ann_alpha": ann_alpha,
+        "beta": beta,
+        "alpha_t": alpha_d / se_alpha if se_alpha > 0 else float("nan"),
+        "info_ratio": ann_alpha / resid_vol if resid_vol > 0 else float("nan"),
+        "r2": 1.0 - float(resid @ resid) / ss_tot if ss_tot > 0 else float("nan"),
+        "n": float(n),
+    }
