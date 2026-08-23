@@ -61,6 +61,16 @@ _CONCEPTS: dict[str, list[str]] = {
         "us-gaap_EarningsPerShareBasicAndDiluted",
         "us-gaap_EarningsPerShareBasic",
     ],
+    # Added for the second research pass: assets power gross-profits-to-assets
+    # (Novy-Marx) and asset growth; shares power net share issuance.
+    "assets": ["us-gaap_Assets", "us-gaap_AssetsNet"],
+    "shares": [
+        "us-gaap_WeightedAverageNumberOfDilutedSharesOutstanding",
+        "us-gaap_WeightedAverageNumberOfSharesOutstandingBasic",
+        "us-gaap_CommonStockSharesOutstanding",
+        "dei_EntityCommonStockSharesOutstanding",
+    ],
+    "cash_flow_ops": ["us-gaap_NetCashProvidedByUsedInOperatingActivities"],
 }
 _SECTION = {
     "net_income": "ic",
@@ -68,6 +78,9 @@ _SECTION = {
     "gross_profit": "ic",
     "eps": "ic",
     "equity": "bs",
+    "assets": "bs",
+    "shares": "ic",
+    "cash_flow_ops": "cf",
 }
 
 
