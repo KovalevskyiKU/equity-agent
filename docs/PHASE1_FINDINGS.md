@@ -617,3 +617,62 @@ the one significant signal we found lives inside the bid-ask spread.
 `(2/IR)^2` years — 16 years at IR 0.5, 64 at IR 0.25, 100 at IR 0.2. With 11.4 years
 we can only ever prove *large* edges. Absence of proof here is not proof of absence;
 it is a bound on what is provable with free data and one decade.
+
+
+### Phase 4b — the factors we had never tested (2026-08-23)
+
+Extended the point-in-time fundamentals connector with **total assets, share count
+and operating cash flow** (712/738 names) and tested four classic anomalies we had
+simply never tried. Point-in-time, total-return, monthly, net of costs:
+
+| factor | coverage | x-sec IC | IC t | LS ann | LS Sharpe | turnover |
+|--------|---------:|---------:|-----:|-------:|----------:|---------:|
+| **net_issuance** | 319 | **+0.0231** | **2.45** | **+1.64%** | **0.44** | **15** |
+| gp_to_assets (Novy-Marx) | 154 | +0.0108 | 1.02 | −1.08% | −0.17 | 9 |
+| asset_growth | 448 | −0.0058 | −0.68 | −0.29% | −0.05 | 21 |
+| accruals | 398 | −0.0006 | −0.08 | −0.03% | 0.01 | 17 |
+
+**Net share issuance is the best signal found anywhere in this project** — and
+unlike short-term reversal, **costs do not eat it** (turnover 15, not 444). Firms
+that shrink their share count (buybacks) outperform issuers.
+
+**Robustness — it holds up where everything else failed:**
+
+- *Quantile choice:* long-short Sharpe 0.32 / 0.44 / 0.43 / 0.49 across top-bottom
+  10/20/30/40% — not knife-edge.
+- *Sub-periods:* first half +1.62%/yr (Sharpe 0.45), second half +1.65%/yr
+  (Sharpe 0.43) — near-identical, the stability we never saw in any other factor.
+- *Per year:* positive in 9 of 12 years.
+
+**Best composite so far:** earnings_yield + ROE + net_issuance (sector-neutral),
+long-only top quintile:
+
+| construction | Sharpe | ann alpha | alpha t |
+|--------------|-------:|----------:|--------:|
+| EY + ROE + **net_issuance** | **0.90** | **+2.67%** | **1.30** |
+| EY + ROE + gross_margin (old best) | 0.85 | +1.55% | 0.84 |
+| *SPY* | *0.81* | — | — |
+
+**Honest caveats — this is a lead, not a green light:**
+
+1. **Still not statistically significant.** alpha t = 1.30 (IR ~0.39); proving it at
+   t = 2 needs ~27 years of data. We have 11.4.
+2. **It has decayed.** The per-year long-short returns are strong in 2016-2022
+   (+1.4% to +3.8%) but flat-to-negative in **2023-2026** (−0.2%, +0.1%, +0.1%,
+   −1.2%) — consistent with the anomaly being arbitraged away, exactly as happened
+   to the crypto funding carry.
+3. **Coverage is 319 of ~460 members** (the share-count tag is missing for ~24% of
+   filers), so there is mild selection.
+4. The long-short leg assumes costless shorting; a real short book pays borrow.
+
+### Updated verdict after the audit
+
+The earlier flat "no factor beats SPY" was **too strong**. The accurate statement:
+
+> Across everything tested, **one factor — net share issuance — carries a
+> statistically significant, cost-surviving, sub-period-stable cross-sectional
+> signal**, and a composite using it shows +2.67%/yr alpha over SPY. That alpha is
+> **not provable** with 11 years of data (t = 1.30), and the signal has visibly
+> **decayed since 2023**. Everything else we tested — momentum, low-vol, value,
+> quality, margins, asset growth, accruals, gross-profits-to-assets, and the LLM
+> layer — shows no significant premium.
