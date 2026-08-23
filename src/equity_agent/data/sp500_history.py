@@ -195,3 +195,59 @@ def membership_mask(
 def _changes_on(changes: pd.DataFrame, eff: pd.Timestamp) -> tuple[list, list]:
     rows = changes[changes["eff"] == eff]
     return list(rows["add"]), list(rows["rem"])
+
+
+# --------------------------------------------------------------------------- #
+# Generic index membership (S&P 400 mid-cap, S&P 600 small-cap, ...)
+# --------------------------------------------------------------------------- #
+# The reconstruction helpers below (ever_members / members_asof / membership_mask)
+# are already index-agnostic — they take `current` and `changes` as arguments. Only
+# the fetchers were hardcoded to the S&P 500 page, so these generalize them.
+INDEX_PAGES = {
+    "sp400": "https://en.wikipedia.org/wiki/List_of_S%26P_400_companies",
+    "sp600": "https://en.wikipedia.org/wiki/List_of_S%26P_600_companies",
+    "sp500": WIKI_SP500_URL,
+}
+
+
+def _find_constituents_table(tables: list[pd.DataFrame]) -> pd.DataFrame | None:
+    """The constituents table is the one with a Symbol/Ticker column and many rows."""
+    for t in tables:
+        header = " ".join(str(c) for c in t.columns)
+        if ("Symbol" in header or "Ticker" in header) and len(t) > 100:
+            return t
+    return None
+
+
+def fetch_index_symbols(index: str, timeout: float = 30.0) -> list[str]:
+    """Current constituents of a supported index, normalized for yfinance."""
+    tables = _fetch_tables(INDEX_PAGES[index], None, timeout)
+    table = _find_constituents_table(tables)
+    if table is None:
+        raise RuntimeError(f"no constituents table found for {index}")
+    col = "Symbol" if "Symbol" in table.columns else "Ticker"
+    return sorted({s for s in table[col].map(_norm).tolist() if s})
+
+
+def fetch_index_changes(index: str, timeout: float = 30.0) -> pd.DataFrame:
+    """Changes log for a supported index (same schema as fetch_sp500_changes).
+
+    Cached to ``data/<index>_changes.csv`` so research stays reproducible if the
+    upstream page is restructured (which already happened to the S&P 500 page).
+    """
+    cache = _changes_cache_path().with_name(f"{index}_changes.csv")
+    try:
+        table = _find_changes_table(_fetch_tables(INDEX_PAGES[index], None, timeout))
+    except Exception as e:  # noqa: BLE001 - fall through to the cache
+        logger.warning("[%s] changes fetch failed: %s", index, e)
+        table = None
+    if table is not None:
+        parsed = _parse_changes(table)
+        parsed.to_csv(cache, index=False)
+        return parsed
+    if cache.exists():
+        logger.warning("[%s] using cached changes (%s)", index, cache)
+        cached = pd.read_csv(cache)
+        cached["eff"] = pd.to_datetime(cached["eff"], errors="coerce")
+        return cached.dropna(subset=["eff"])
+    raise RuntimeError(f"could not obtain the changes table for {index}")
