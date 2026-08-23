@@ -99,3 +99,41 @@ def test_value_quality_composite_averages_neutral_zscores() -> None:
     assert comp.shape == (1, 4)
     # ey and roe are opposite rankings -> their neutral z-scores cancel to ~0.
     assert np.allclose(comp.loc[dates[0]].to_numpy(), 0.0, atol=1e-9)
+
+
+def test_quarterly_net_issuance_sign_and_lag(tmp_path, monkeypatch) -> None:
+    """Buybacks (shrinking share count) score HIGH; issuance scores low; YoY lag=4."""
+    import equity_agent.data.fundamentals as fund
+    from equity_agent.research.fundamental_factors import quarterly_net_issuance
+
+    monkeypatch.setattr(fund, "_quarterly_dir", lambda: tmp_path)
+    # 8 quarters: BUYER shrinks its share count, ISSUER grows it.
+    ends = pd.date_range("2021-03-31", periods=8, freq="QE")
+    filed = ends + pd.Timedelta(days=30)
+    for sym, shares in (("BUYER", np.linspace(100, 86, 8)), ("ISSUER", np.linspace(100, 114, 8))):
+        pd.DataFrame(
+            {"filed_date": filed, "end_date": ends, "year": ends.year,
+             "quarter": ends.quarter, "shares": shares}
+        ).to_parquet(tmp_path / f"{sym}.parquet")
+
+    close = pd.DataFrame(
+        1.0,
+        index=pd.date_range("2021-01-01", periods=900, freq="D"),
+        columns=["BUYER", "ISSUER"],
+    )
+    f = quarterly_net_issuance(["BUYER", "ISSUER"], close)
+    last = f.dropna(how="all").iloc[-1]
+    assert last["BUYER"] > 0  # bought back -> positive score
+    assert last["ISSUER"] < 0  # issued -> negative score
+    assert last["BUYER"] > last["ISSUER"]
+
+
+def test_quarterly_net_issuance_missing_symbol_is_nan(tmp_path, monkeypatch) -> None:
+    import equity_agent.data.fundamentals as fund
+    from equity_agent.research.fundamental_factors import quarterly_net_issuance
+
+    monkeypatch.setattr(fund, "_quarterly_dir", lambda: tmp_path)
+    close = pd.DataFrame(
+        1.0, index=pd.date_range("2021-01-01", periods=10, freq="D"), columns=["NONE"]
+    )
+    assert quarterly_net_issuance(["NONE"], close)["NONE"].isna().all()

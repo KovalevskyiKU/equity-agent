@@ -140,3 +140,35 @@ def value_quality_composite(
     totals = np.nansum(arr, axis=0)
     comp = np.where(counts > 0, totals / np.maximum(counts, 1), np.nan)
     return pd.DataFrame(comp, index=base.index, columns=base.columns)
+
+
+def quarterly_net_issuance(
+    symbols: list[str], close_px: pd.DataFrame, lag_quarters: int = 4
+) -> pd.DataFrame:
+    """Net-issuance factor from **quarterly** share counts (higher = better).
+
+    The annual version only refreshes once a year, so the signal can be up to twelve
+    months stale. Quarterly filings refresh it four times a year. The change is taken
+    **year-over-year against the same fiscal quarter** (``lag_quarters=4``): a 10-Q's
+    weighted-average share count may be quarter- or year-to-date-averaged, and
+    comparing like fiscal quarters keeps that convention constant on both sides of
+    the ratio. Sign is negated so buybacks (a shrinking share count) score high.
+    """
+    from ..data.fundamentals import load_quarterly_shares
+
+    daily = pd.to_datetime(close_px.index)
+    series: dict[str, pd.Series] = {}
+    for sym in symbols:
+        q = load_quarterly_shares(sym)
+        if q.empty or len(q) <= lag_quarters:
+            continue
+        q = q.sort_values("end_date")
+        shares = q["shares"].astype(float)
+        change = shares / shares.shift(lag_quarters) - 1.0
+        series[sym] = _to_daily(-change.where(shares > 0), q["filed_date"], daily)
+
+    panel = pd.DataFrame(series)
+    if panel.empty:
+        return pd.DataFrame(index=close_px.index, columns=close_px.columns, dtype=float)
+    panel.index = close_px.index
+    return panel.reindex(columns=close_px.columns)
